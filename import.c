@@ -1,11 +1,12 @@
 #include "import.h"
 
-#include "stdio.h"
-#include "fts.h"
-#include "string.h"
-#include "stdbool.h"
+#include <stdlib.h>
+#include <stdio.h>
+#include <fts.h>
+#include <string.h>
+#include <stdbool.h>
 
-#include "cdf.h"
+#include <cdf.h>
 
 int sortL2Listing(const FTSENT **first, const FTSENT **second)
 {
@@ -61,17 +62,65 @@ int loadThemisL2File(ProgramState *state)
 
     int status = ASCC_L2_FILE;
 
+    CDFid cdf = NULL;
+    CDFstatus cdfStatus = 0;
+    char cdfVarName[CDF_VAR_NAME_LEN+1] = {0};
+    long numRecs = 0;
+    CDFdata data = NULL;
+
     while (e)
     {
         if ((strncmp(e->fts_name, "thg_l2_asc_", 11) == 0) && (strncmp(e->fts_name + 11, state->site, 4) == 0) && strncmp(e->fts_name + e->fts_namelen - 4, ".cdf", 4) == 0)
         {
-            state->l2filename = strdup(e->fts_name);
+            state->l2filename = strdup(e->fts_name); // Track input files, but full path not needed.
             printf("Got L2 file %s\n", state->l2filename);
             // TODO load data
+            cdfStatus = CDFopen(e->fts_path, &cdf);
+            if (cdfStatus != CDF_OK)
+            {
+                status = ASCC_L2_FILE;
+                break;
+            }
+            sprintf(cdfVarName, "thg_asc_%s_glat", state->site);
+            cdfStatus = CDFreadzVarDataByVarName(cdf, cdfVarName, &numRecs, &data);
+            if (cdfStatus != CDF_OK)
+            {
+                CDFclose(cdf);
+                status = ASCC_L2_FILE;
+                break;
+            }
+            state->siteLatitudeGeodetic = *(float*)data;
+
+            sprintf(cdfVarName, "thg_asc_%s_glon", state->site);
+            cdfStatus = CDFreadzVarDataByVarName(cdf, cdfVarName, &numRecs, &data);
+            if (cdfStatus != CDF_OK)
+            {
+                CDFclose(cdf);
+                status = ASCC_L2_FILE;
+                break;
+            }
+            state->siteLongitudeGeodetic = *(float*)data;
+            if (state->siteLongitudeGeodetic > 180.0)
+                state->siteLongitudeGeodetic -= 360.0;
+
+            sprintf(cdfVarName, "thg_asc_%s_alti", state->site);
+            cdfStatus = CDFreadzVarDataByVarName(cdf, cdfVarName, &numRecs, &data);
+            if (cdfStatus != CDF_OK)
+            {
+                CDFclose(cdf);
+                status = ASCC_L2_FILE;
+                break;
+            }
+            state->siteAltitudeMetres = *(float*)data;
+
+            CDFclose(cdf);
+
+            printf("Site location (%s): %.3fN %.3fE, altitude %.0f m\n", state->site, state->siteLatitudeGeodetic, state->siteLongitudeGeodetic, state->siteAltitudeMetres);
 
             status = ASCC_OK;
-
             break;
+
+
         }
         e = fts_read(fts);
     }
