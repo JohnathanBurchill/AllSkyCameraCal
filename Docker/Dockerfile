@@ -1,4 +1,4 @@
-# Stars: Docker/Dockerfile
+# AllSkyCameraCal: Docker/Dockerfile
 
 # Copyright (C) 2022  Johnathan K Burchill
 
@@ -42,6 +42,18 @@ RUN addgroup science
 RUN useradd -g science science
 USER science
 WORKDIR /home/science/src
+RUN cd /home/science && \
+wget https://spdf.gsfc.nasa.gov/pub/software/cdf/dist/cdf38_1/linux/cdf38_1-dist-cdf.tar.gz && \
+tar xf cdf38_1-dist-cdf.tar.gz && \
+cd cdf38_1-dist && \
+make OS=linux ENV=gnu CURSES=no all
+USER root
+RUN cd /home/science/cdf38_1-dist && \
+make INSTALLDIR=/usr/local install && \
+ldconfig
+USER science
+RUN cd /home/science && \
+rm -rf cdf38_1-dist*
 VOLUME ["/home/science/src"]
 ENTRYPOINT ["/bin/bash"]
 

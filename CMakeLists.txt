@@ -1,4 +1,4 @@
-# ReadSave: CMakeLists.txt
+# AllSkyCameraCal: CMakeLists.txt
 
 # Copyright (C) 2022  Johnathan K Burchill
 
@@ -16,7 +16,7 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 
-PROJECT(ReadSave)
+PROJECT(AllSkyCameraCal)
 
 CMAKE_MINIMUM_REQUIRED(VERSION 3.3)
 
@@ -32,13 +32,14 @@ endif(CMAKE_BUILD_TYPE STREQUAL Debug)
 
 INCLUDE_DIRECTORIES(include)
 
-SET(LIBS ${LIBS})
+# GSL
+FIND_PACKAGE(GSL REQUIRED)
 
-INCLUDE_DIRECTORIES(${INCLUDE_DIRS})
+SET(LIBS ${LIBS} ${MATH} ${GSL_LIBRARY} cdf )
 
-ADD_LIBRARY(redsafe readsave.c)
+INCLUDE_DIRECTORIES(${INCLUDE_DIRS} ${GSL_INCLUDE_DIRS})
 
-ADD_EXECUTABLE(readsave main.c)
-TARGET_LINK_LIBRARIES(readsave redsafe)
+ADD_EXECUTABLE(allskycameracal main.c)
+TARGET_LINK_LIBRARIES(allskycameracal ${LIBS})
 
-install(TARGETS readsave DESTINATION $ENV{HOME}/bin)
+install(TARGETS allskycameracal DESTINATION $ENV{HOME}/bin)

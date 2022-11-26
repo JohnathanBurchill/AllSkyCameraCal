@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Stars: Docker/docker-build.txt
+# AllSkyCameraCal: Docker/docker-build.txt
 
 # Copyright (C) 2022  Johnathan K Burchill
 
