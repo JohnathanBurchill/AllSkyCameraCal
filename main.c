@@ -1,5 +1,7 @@
 #include "main.h"
 
+#include "import.h"
+
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
@@ -7,10 +9,11 @@
 
 #include <cdf.h>
 
-int nCalibrationStars = N_CALIBRATION_STARS;
-
 int main(int argc, char **argv)
 {
+
+    ProgramState state = {0};
+    state.nCalibrationStars = N_CALIBRATION_STARS;
 
     int nOptions = 0;
     for (int i = 0; i < argc; i++)
@@ -29,8 +32,8 @@ int main(int argc, char **argv)
         {
             nOptions++;
             char *errStr = NULL;
-            nCalibrationStars = atoi(argv[i]+30);
-            if (nCalibrationStars <= MIN_N_CALIBRATION_STARS)
+            state.nCalibrationStars = atoi(argv[i]+30);
+            if (state.nCalibrationStars <= MIN_N_CALIBRATION_STARS)
             {
                 fprintf(stderr, "Number of calibration stars must be at least %d\n", MIN_N_CALIBRATION_STARS);
                 return EXIT_FAILURE;
@@ -49,47 +52,56 @@ int main(int argc, char **argv)
         return EXIT_FAILURE;
     }
 
-    char *site = argv[1];
-    if (strlen(site) != 4)
+    state.site = argv[1];
+    if (strlen(state.site) != 4)
     {
         fprintf(stderr, "site name must be 4 letters, like \"rank\" for Rankin Inlet.\n");
         return EXIT_FAILURE;
     }
 
-    char *firstCalDateString = argv[2];
-    double firstCalDate = parseEPOCH4(firstCalDateString);
-    if (firstCalDate == ILLEGAL_EPOCH_VALUE)
+    state.firstCalDateString = argv[2];
+    state.firstCalTime = parseEPOCH4(state.firstCalDateString);
+    if (state.firstCalTime == ILLEGAL_EPOCH_VALUE)
     {
         fprintf(stderr, "The first calibration date is garbage.\n");
         return EXIT_FAILURE;
     }
 
-    char *lastCalDateString = argv[3];
-    double lastCalDate = parseEPOCH4(lastCalDateString);
-    if (lastCalDate == ILLEGAL_EPOCH_VALUE)
+    state.lastCalDateString = argv[3];
+    state.lastCalTime = parseEPOCH4(state.lastCalDateString);
+    if (state.lastCalTime == ILLEGAL_EPOCH_VALUE)
     {
-        fprintf(stderr, "The first calibration date is garbage.\n");
+        fprintf(stderr, "The last calibration date is garbage.\n");
         return EXIT_FAILURE;
     }
 
-    printf("Estimating THEMIS level 2 optical calibration for site %s using level 1 imagery between %s UT and %s UT\n", site, firstCalDateString, lastCalDateString);
+    printf("Estimating THEMIS level 2 optical calibration for site %s using level 1 imagery between %s UT and %s UT\n", state.site, state.firstCalDateString, state.lastCalDateString);
 
-    char *l1dir = argv[4];
-    char *l2dir = argv[5];
+    state.l1dir = argv[4];
+    state.l2dir = argv[5];
 
-    if (access(l1dir, F_OK) != 0)
+    if (access(state.l1dir, F_OK) != 0)
     {
-        fprintf(stderr, "Level 1 directory %s not found.\n", l1dir);
+        fprintf(stderr, "Level 1 directory %s not found.\n", state.l1dir);
         return EXIT_FAILURE;
     }
 
-    if (access(l2dir, F_OK) != 0)
+    if (access(state.l2dir, F_OK) != 0)
     {
-        fprintf(stderr, "Level 2 directory %s not found.\n", l2dir);
+        fprintf(stderr, "Level 2 directory %s not found.\n", state.l2dir);
         return EXIT_FAILURE;
     }
+
+    int status = ASCC_OK;
 
     // Read in pixel elevations and azimuths from L2 file.
+    status = loadThemisL2File(&state);
+    if (status != ASCC_OK)
+    {
+        fprintf(stderr, "Could not load THEMIS Level 2 calibration file.\n");
+        return EXIT_FAILURE;
+    }
+
     // Read in site geodetic position from L2 file.
 
     // Read in the star catalog (BCS5) sorted by right ascension (BCS5ra)

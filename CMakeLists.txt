@@ -39,7 +39,7 @@ SET(LIBS ${LIBS} ${MATH} ${GSL_LIBRARY} cdf )
 
 INCLUDE_DIRECTORIES(${INCLUDE_DIRS} ${GSL_INCLUDE_DIRS})
 
-ADD_EXECUTABLE(allskycameracal main.c)
+ADD_EXECUTABLE(allskycameracal main.c import.c)
 TARGET_LINK_LIBRARIES(allskycameracal ${LIBS})
 
 install(TARGETS allskycameracal DESTINATION $ENV{HOME}/bin)
