@@ -3,6 +3,9 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
+#include <unistd.h>
+
+#include <cdf.h>
 
 int main(int argc, char **argv)
 {
@@ -20,6 +23,52 @@ int main(int argc, char **argv)
             about();
             return EXIT_SUCCESS;
         }
+    }
+
+    if (argc - nOptions != 6)
+    {
+        usage(argv[0]);
+        return EXIT_FAILURE;
+    }
+
+    char *site = argv[1];
+    if (strlen(site) != 4)
+    {
+        fprintf(stderr, "site name must be 4 letters, like \"rank\" for Rankin Inlet.\n");
+        return EXIT_FAILURE;
+    }
+
+    char *firstCalDateString = argv[2];
+    double firstCalDate = parseEPOCH4(firstCalDateString);
+    if (firstCalDate == ILLEGAL_EPOCH_VALUE)
+    {
+        fprintf(stderr, "The first calibration date is garbage.\n");
+        return EXIT_FAILURE;
+    }
+
+    char *lastCalDateString = argv[3];
+    double lastCalDate = parseEPOCH4(lastCalDateString);
+    if (lastCalDate == ILLEGAL_EPOCH_VALUE)
+    {
+        fprintf(stderr, "The first calibration date is garbage.\n");
+        return EXIT_FAILURE;
+    }
+
+    printf("Estimating THEMIS level 2 optical calibration for site %s using level 1 imagery between %s UT and %s UT\n", site, firstCalDateString, lastCalDateString);
+
+    char *l1dir = argv[4];
+    char *l2dir = argv[5];
+
+    if (access(l1dir, F_OK) != 0)
+    {
+        fprintf(stderr, "Level 1 directory %s not found.\n", l1dir);
+        return EXIT_FAILURE;
+    }
+
+    if (access(l2dir, F_OK) != 0)
+    {
+        fprintf(stderr, "Level 2 directory %s not found.\n", l2dir);
+        return EXIT_FAILURE;
     }
 
     return EXIT_SUCCESS;
