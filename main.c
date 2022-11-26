@@ -7,6 +7,8 @@
 
 #include <cdf.h>
 
+int nCalibrationStars = N_CALIBRATION_STARS;
+
 int main(int argc, char **argv)
 {
 
@@ -22,6 +24,22 @@ int main(int argc, char **argv)
         {
             about();
             return EXIT_SUCCESS;
+        }
+        else if (strncmp(argv[i], "--number-of-calibration-stars=", 30) == 0)
+        {
+            nOptions++;
+            char *errStr = NULL;
+            nCalibrationStars = atoi(argv[i]+30);
+            if (nCalibrationStars <= MIN_N_CALIBRATION_STARS)
+            {
+                fprintf(stderr, "Number of calibration stars must be at least %d\n", MIN_N_CALIBRATION_STARS);
+                return EXIT_FAILURE;
+            }
+        }
+        else if (strncmp(argv[i], "--", 2) == 0)
+        {
+            fprintf(stderr, "Unknown option %s\n", argv[i]);
+            return EXIT_FAILURE;
         }
     }
 
@@ -71,18 +89,81 @@ int main(int argc, char **argv)
         return EXIT_FAILURE;
     }
 
+    // Read in pixel elevations and azimuths from L2 file.
+    // Read in site geodetic position from L2 file.
+
+    // Read in the star catalog (BCS5) sorted by right ascension (BCS5ra)
+
+    // Loop over all L1 files between the requested calibration time.
+    // Estimate the L2 calibration for each time
+    // Reject calibrations that are too different from the THEMIS L2 calibration
+    // Average the calibrations to get one calibration
+
+    // Exclude any for which the moon was too high?
+    // or get the direction of the moon at that time and exclude pixels
+    // within a neighbourhood of that direction.
+
+    // Perform any further image processing
+    // Exclude obvious snow and cloud?
+    // Could count the number of stars and reject images if the count is too low?
+
+
+
+    // For each image
+
+        // get the universal time
+        // Calculate the right ascension of each pixel
+        // If the first image or if the RA min-max has changed by more than 5 degrees
+            // Get stars within the min-max RA and min-max elevation of the image
+            // Sort those stars from brightest to dimmest
+        // Keep the N brightest stars, say N = 20
+    
+        // This method relies on the camera orientation being very close to the 
+        // original camera orientation. Arclengths of star displacements 
+        // no more than 5 degrees, say?
+
+        // For each calibration star
+        // Defining two concentric rings in arc-length about 
+        // each star labeled R1 and R2
+        // the first ring being a disk and the second an adjacent annulus,        
+            // get the mean pixel count within R2 as a background estimate
+            // subtract this from the pixel values within R1 and calculate the
+            // first moment and total signal in R1
+            // If the total signal in R1 is too small, reject this star.
+
+        // Continue to the next L1 image if there are not enough calibration stars
+
+        // The remaining moments are the "actual" star positions
+
+        // Calculate the mean arc length of the displacements 
+        // "expected star positions" minus "estimated star positions from first moments"
+        // If this is too large, continue to the next image
+
+        // Iterate to an estimate of the new pixel elevation and right ascension map
+
+        // If that worked, calculate the new azimuths from the new right ascensions and the time
+
+    // If the number of estimated calibrations is too few, fail the overall calbration.
+
+    // Calculate the median (or mean?) and standard deviation of the arc lengths of the 
+    // new el-az maps minus the original L2 el-az map.
+    // If the average arc length or the standard deviation is too large, flag this
+    // Save the new L2 calibration in a CDF file.
+    
+
     return EXIT_SUCCESS;
 }
 
 
 void usage(char *name)
 {
-    printf("Usage: %s <site> <firstCalDate> <lastCalDate> <l1dir> <l2dir> [--help] [--usage]\n", name);
+    printf("Usage: %s <site> <firstCalDate> <lastCalDate> <l1dir> <l2dir> [--number-of-calibration-stars=N] [--help] [--usage]\n", name);
     printf(" estimates new THEMIS ASI elevation and azimuth map for <site> using suitable ASI images from <firstCalDate> to <lastCalDate>.\n");
     printf(" Dates have the form yyyy-mm-ddTHH:MM:SS.sss interpreted as universal times.\n");
     printf(" <l1dir> is the path to the directory containing the THEMIS level 1 ASI files.\n");
     printf(" <l2dir> is the path to the directory containing the THEMIS l2 ASI files.\n");
     printf(" Options:\n");
+    printf("%20s : sets the number of calibration stars. Defaults to %d.\n", "--number-of-calibration-stars=N", N_CALIBRATION_STARS);
     printf("%20s : prints this message.\n", "--help");
     printf("%20s : prints author name and license.\n", "--about");
 
