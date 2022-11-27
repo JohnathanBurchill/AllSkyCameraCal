@@ -5,6 +5,7 @@
 #include <fts.h>
 #include <string.h>
 #include <stdbool.h>
+#include <math.h>
 
 #include <cdf.h>
 
@@ -64,9 +65,9 @@ int loadThemisL2File(ProgramState *state)
 
     CDFid cdf = NULL;
     CDFstatus cdfStatus = 0;
-    char cdfVarName[CDF_VAR_NAME_LEN+1] = {0};
     long numRecs = 0;
     CDFdata data = NULL;
+    float *pointer = NULL;
 
     while (e)
     {
@@ -74,57 +75,102 @@ int loadThemisL2File(ProgramState *state)
         {
             state->l2filename = strdup(e->fts_name); // Track input files, but full path not needed.
             printf("Got L2 file %s\n", state->l2filename);
-            // TODO load data
             cdfStatus = CDFopen(e->fts_path, &cdf);
             if (cdfStatus != CDF_OK)
             {
                 status = ASCC_L2_FILE;
                 break;
             }
-            sprintf(cdfVarName, "thg_asc_%s_glat", state->site);
-            cdfStatus = CDFreadzVarDataByVarName(cdf, cdfVarName, &numRecs, &data);
-            if (cdfStatus != CDF_OK)
+            state->siteLatitudeGeodetic = getCdfFloat(cdf, state->site, "thg_asc_%s_glat");
+            state->siteLongitudeGeodetic = getCdfFloat(cdf, state->site, "thg_asc_%s_glon");
+            state->siteAltitudeMetres = getCdfFloat(cdf, state->site, "thg_asc_%s_alti");
+
+            if (!isfinite(state->siteLatitudeGeodetic) || !isfinite(state->siteLongitudeGeodetic) || !isfinite(state->siteAltitudeMetres))
             {
-                CDFclose(cdf);
                 status = ASCC_L2_FILE;
                 break;
             }
-            state->siteLatitudeGeodetic = *(float*)data;
 
-            sprintf(cdfVarName, "thg_asc_%s_glon", state->site);
-            cdfStatus = CDFreadzVarDataByVarName(cdf, cdfVarName, &numRecs, &data);
-            if (cdfStatus != CDF_OK)
-            {
-                CDFclose(cdf);
-                status = ASCC_L2_FILE;
+            pointer = &state->l2CameraElevations[0][0];
+            status = getCdfFloatArray(cdf, state->site, "thg_asf_%s_elev", 0, &pointer);
+            if (status != ASCC_OK)
                 break;
-            }
-            state->siteLongitudeGeodetic = *(float*)data;
-            if (state->siteLongitudeGeodetic > 180.0)
-                state->siteLongitudeGeodetic -= 360.0;
 
-            sprintf(cdfVarName, "thg_asc_%s_alti", state->site);
-            cdfStatus = CDFreadzVarDataByVarName(cdf, cdfVarName, &numRecs, &data);
-            if (cdfStatus != CDF_OK)
-            {
-                CDFclose(cdf);
-                status = ASCC_L2_FILE;
+            pointer = &state->l2CameraAzimuths[0][0];
+            status = getCdfFloatArray(cdf, state->site, "thg_asf_%s_azim", 0, &pointer);
+            if (status != ASCC_OK)
                 break;
-            }
-            state->siteAltitudeMetres = *(float*)data;
-
-            CDFclose(cdf);
 
             printf("Site location (%s): %.3fN %.3fE, altitude %.0f m\n", state->site, state->siteLatitudeGeodetic, state->siteLongitudeGeodetic, state->siteAltitudeMetres);
+
+            for (int i = 0; i < IMAGE_COLUMNS; i++)
+                for (int j = 0; j < IMAGE_ROWS; j++)
+                    printf("pixel(%d,%d): elev: %.2f azim %.2f\n", i, j, state->l2CameraElevations[i][j], state->l2CameraAzimuths[i][j]);
 
             status = ASCC_OK;
             break;
 
-
         }
         e = fts_read(fts);
     }
+
+    if (data != NULL)
+        CDFdataFree(data);
+    if (cdf != NULL)
+        CDFclose(cdf);
+
     fts_close(fts);
 
     return status;
+}
+
+
+float getCdfFloat(CDFid cdf, char *site, char *varNameTemplate)
+{
+    if (site == NULL || varNameTemplate == NULL)
+        return NAN;
+
+    long numRecs = 0;
+    CDFdata data = NULL;
+    char cdfVarName[CDF_VAR_NAME_LEN+1] = {0};
+    sprintf(cdfVarName, varNameTemplate, site);
+    CDFstatus cdfStatus = CDFreadzVarDataByVarName(cdf, cdfVarName, &numRecs, &data);
+    if (cdfStatus != CDF_OK || numRecs != 1)
+    {
+        if (data != NULL)
+            CDFdataFree(data);
+        return NAN;
+    }
+    float value = *(float*)data;
+    CDFdataFree(data);
+
+    return value;
+}
+
+// Caller frees memory at pointer when values are no longer needed
+// Caller needs to know how many elements are in the record from 
+// THEMIS documentation or cdfdumping the L2 file
+int getCdfFloatArray(CDFid cdf, char *site, char *varNameTemplate, long recordIndex, float **data)
+{
+    if (site == NULL || varNameTemplate == NULL || data == NULL)
+        return ASCC_ARGUMENTS;
+
+    char cdfVarName[CDF_VAR_NAME_LEN+1] = {0};
+    sprintf(cdfVarName, varNameTemplate, site);
+    long nRecs = 0;
+
+    CDFstatus cdfStatus = CDFgetzVarMaxWrittenRecNum(cdf, CDFgetVarNum(cdf, cdfVarName), &nRecs);
+    // Assumes data is NULL if cdfStatus != CDF_OK...Is it true?
+    if (cdfStatus != CDF_OK || nRecs <= recordIndex)
+        return ASCC_L2_FILE;
+
+    // TODO: How to deal with multiple epochs and elevation-azimuth maps?
+    // The test file has two epochs. What gives?
+    // Can't assume the last record is more correct. Or are they even different?
+    // For now let caller decide
+    cdfStatus = CDFgetVarRangeRecordsByVarName(cdf, cdfVarName, recordIndex, recordIndex, *data);
+    if (cdfStatus != CDF_OK)
+        return ASCC_CDF_READ;
+
+    return ASCC_OK;
 }

@@ -3,6 +3,8 @@
 
 #define N_CALIBRATION_STARS 25
 #define MIN_N_CALIBRATION_STARS 10
+#define IMAGE_ROWS 256
+#define IMAGE_COLUMNS 256
 
 enum ASCC_STATUS
 {
@@ -10,7 +12,9 @@ enum ASCC_STATUS
     ASCC_L1_FILE = 1,
     ASCC_L2_FILE = 2,
     ASCC_BSC5_FILE = 3,
-    ASCC_MEM = 4
+    ASCC_MEM = 4,
+    ASCC_ARGUMENTS = 5,
+    ASCC_CDF_READ = 6
 };
 
 typedef struct ProgramState
@@ -33,12 +37,12 @@ typedef struct ProgramState
     float siteAltitudeMetres;
 
     float *sitePixelOffsets;
-    float *l2CameraElevations;
-    float *l2CameraAzimuths;
-    float *l2CameraRightAscensions;
+    float l2CameraElevations[IMAGE_COLUMNS][IMAGE_ROWS];
+    float l2CameraAzimuths[IMAGE_COLUMNS][IMAGE_ROWS];
+    float l2CameraRightAscensions[IMAGE_COLUMNS][IMAGE_ROWS];
 
-    float *newCameraElevations;
-    float *newCameraAzimuths;
+    float newCameraElevations[IMAGE_COLUMNS][IMAGE_ROWS];
+    float newCameraAzimuths[IMAGE_COLUMNS][IMAGE_ROWS];
 
 } ProgramState;
 
