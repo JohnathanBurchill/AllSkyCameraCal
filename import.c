@@ -101,11 +101,11 @@ int loadThemisL2File(ProgramState *state)
             if (status != ASCC_OK)
                 break;
 
-            printf("Site location (%s): %.3fN %.3fE, altitude %.0f m\n", state->site, state->siteLatitudeGeodetic, state->siteLongitudeGeodetic, state->siteAltitudeMetres);
+            // printf("Site location (%s): %.3fN %.3fE, altitude %.0f m\n", state->site, state->siteLatitudeGeodetic, state->siteLongitudeGeodetic, state->siteAltitudeMetres);
 
-            for (int i = 0; i < IMAGE_COLUMNS; i++)
-                for (int j = 0; j < IMAGE_ROWS; j++)
-                    printf("pixel(%d,%d): elev: %.2f azim %.2f\n", i, j, state->l2CameraElevations[i][j], state->l2CameraAzimuths[i][j]);
+            // for (int i = 0; i < IMAGE_COLUMNS; i++)
+            //     for (int j = 0; j < IMAGE_ROWS; j++)
+            //         printf("pixel(%d,%d): elev: %.2f azim %.2f\n", i, j, state->l2CameraElevations[i][j], state->l2CameraAzimuths[i][j]);
 
             status = ASCC_OK;
             break;
