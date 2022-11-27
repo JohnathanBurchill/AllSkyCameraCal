@@ -28,6 +28,8 @@ typedef struct ProgramState
 
     int nCalibrationStars;
 
+    char *stardir;
+
     char *l1dir;
     char *l2filename;
 

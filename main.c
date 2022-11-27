@@ -14,8 +14,12 @@ int main(int argc, char **argv)
 
     ProgramState state = {0};
     state.nCalibrationStars = N_CALIBRATION_STARS;
+    state.l1dir = ".";
+    state.l2dir = ".";
+    state.stardir = ".";
 
     int nOptions = 0;
+
     for (int i = 0; i < argc; i++)
     {
         if (strcmp(argv[i], "--help") == 0)
@@ -39,6 +43,21 @@ int main(int argc, char **argv)
                 return EXIT_FAILURE;
             }
         }
+        else if (strncmp(argv[i], "--l1dir=", 8) == 0)
+        {
+            nOptions++;
+            state.l1dir = argv[i]+8;
+        }
+        else if (strncmp(argv[i], "--l2dir=", 8) == 0)
+        {
+            nOptions++;
+            state.l2dir = argv[i]+8;
+        }
+        else if (strncmp(argv[i], "--stardir=", 10) == 0)
+        {
+            nOptions++;
+            state.stardir = argv[i]+10;
+        }
         else if (strncmp(argv[i], "--", 2) == 0)
         {
             fprintf(stderr, "Unknown option %s\n", argv[i]);
@@ -46,7 +65,7 @@ int main(int argc, char **argv)
         }
     }
 
-    if (argc - nOptions != 6)
+    if (argc - nOptions != 4)
     {
         usage(argv[0]);
         return EXIT_FAILURE;
@@ -76,9 +95,6 @@ int main(int argc, char **argv)
     }
 
     printf("Estimating THEMIS level 2 optical calibration for site %s using level 1 imagery between %s UT and %s UT\n", state.site, state.firstCalDateString, state.lastCalDateString);
-
-    state.l1dir = argv[4];
-    state.l2dir = argv[5];
 
     if (access(state.l1dir, F_OK) != 0)
     {
@@ -178,12 +194,15 @@ cleanup:
 
 void usage(char *name)
 {
-    printf("Usage: %s <site> <firstCalDate> <lastCalDate> <l1dir> <l2dir> [--number-of-calibration-stars=N] [--help] [--usage]\n", name);
+    printf("Usage: %s <site> <firstCalDate> <lastCalDate> [--l1dir=<l1dir>] [--l2dir=<l2dir>] [--stardir=<stardir>] [--number-of-calibration-stars=N] [--help] [--usage]\n", name);
     printf(" estimates new THEMIS ASI elevation and azimuth map for <site> using suitable ASI images from <firstCalDate> to <lastCalDate>.\n");
     printf(" Dates have the form yyyy-mm-ddTHH:MM:SS.sss interpreted as universal times.\n");
     printf(" <l1dir> is the path to the directory containing the THEMIS level 1 ASI files.\n");
     printf(" <l2dir> is the path to the directory containing the THEMIS l2 ASI files.\n");
     printf(" Options:\n");
+    printf("%20s : sets the directory containing THEMIS level 1 (ASI) files. Defaults to \".\".\n", "--l1dir=<l1dir>");
+    printf("%20s : sets the directory containing THEMIS level 2 (calibration) files. Defaults to \".\".\n", "--l2dir=<l2dir>");
+    printf("%20s : sets the directory containing the Yale Bright Star Catalog file (BDS5ra). Defaults to \".\".\n", "--stardir=<stardir>");
     printf("%20s : sets the number of calibration stars. Defaults to %d.\n", "--number-of-calibration-stars=N", N_CALIBRATION_STARS);
     printf("%20s : prints this message.\n", "--help");
     printf("%20s : prints author name and license.\n", "--about");
