@@ -35,7 +35,6 @@ int sortL2Listing(const FTSENT **first, const FTSENT **second)
     else if (file2 == NULL)
         return -1;
 
-
     if (strlen(file1) != 32)
         return 1;
     else if (strlen(file2) != 32)

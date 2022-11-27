@@ -133,13 +133,34 @@ int main(int argc, char **argv)
     state.nStars = -state.nStars;
 
     // Loop over all L1 files between the requested calibration time.
+
+    status = analyzeImagery(&state);
+
+
+    // Don't need L2 pixel directions.
+        // Need only an approximate starting point to locate stars
+        // Like center pixel as zenith and bottom is geographic north
+        // Then calculate a new starting map of elevation and azimuth
+        // using geocentric coordinates
+        // Latitude and longitude can then be easily calculated in geocentric
+        // and magnetic field-line tracing and comparison with satellite
+        // position (all geocentric) are simpler.
+        // But it would be good to validate results against official L2
+        // calibration. So leave this as a future development?
+
+    
+
     // Estimate the L2 calibration for each time
+    // OR: get at least one star in each image and accumlate the positions with
+    // time bins of one hour, or a day or whatever, then analyze the results statistically.
+
     // Reject calibrations that are too different from the THEMIS L2 calibration
     // Average the calibrations to get one calibration
 
     // Exclude any for which the moon was too high?
     // or get the direction of the moon at that time and exclude pixels
     // within a neighbourhood of that direction.
+    // Or just enforce a maximum signal for each "star" region.
 
     // Perform any further image processing
     // Exclude obvious snow and cloud?
@@ -207,7 +228,7 @@ void usage(char *name)
     printf(" <l1dir> is the path to the directory containing the THEMIS level 1 ASI files.\n");
     printf(" <l2dir> is the path to the directory containing the THEMIS l2 ASI files.\n");
     printf(" Options:\n");
-    printf("%20s : sets the directory containing THEMIS level 1 (ASI) files. Defaults to \".\".\n", "--l1dir=<l1dir>");
+    printf("%20s : sets the directory containing THEMIS level 1 (ASI) files. Defaults to \".\". Only one version of each L1 file can be in this directory.\n", "--l1dir=<l1dir>");
     printf("%20s : sets the directory containing THEMIS level 2 (calibration) files. Defaults to \".\".\n", "--l2dir=<l2dir>");
     printf("%20s : sets the directory containing the Yale Bright Star Catalog file (BSC5ra). Defaults to \".\".\n", "--stardir=<stardir>");
     printf("%20s : sets the number of calibration stars. Defaults to %d.\n", "--number-of-calibration-stars=N", N_CALIBRATION_STARS);
