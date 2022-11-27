@@ -1,6 +1,9 @@
 #ifndef _MAIN_H
 #define _MAIN_H
 
+#include <stdlib.h>
+#include <stdint.h>
+
 #define N_CALIBRATION_STARS 25
 #define MIN_N_CALIBRATION_STARS 10
 #define IMAGE_ROWS 256
@@ -14,8 +17,20 @@ enum ASCC_STATUS
     ASCC_BSC5_FILE = 3,
     ASCC_MEM = 4,
     ASCC_ARGUMENTS = 5,
-    ASCC_CDF_READ = 6
+    ASCC_CDF_READ = 6,
+    ASCC_STAR_FILE = 7
 };
+
+typedef struct Star
+{
+    float catalogNumber;
+    double rightAscensionRadian;
+    double declinationRadian;
+    char spectralType[2];
+    int16_t visualMagnitudeTimes100;
+    float raProperMotionRadianPerYear;
+    float decProperMotionRadianPerYear;
+} Star;
 
 typedef struct ProgramState
 {
@@ -29,6 +44,15 @@ typedef struct ProgramState
     int nCalibrationStars;
 
     char *stardir;
+    Star *starData;
+    int32_t nStars;
+    int32_t starSequenceOffset;
+    int32_t firstStarNumber;
+    int32_t hasStarIds;
+    int32_t properMotionIncluded;
+    int32_t nMagnitudes;
+    int32_t bytesPerStarEntry;
+
 
     char *l1dir;
     char *l2filename;

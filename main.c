@@ -125,7 +125,12 @@ int main(int argc, char **argv)
         fprintf(stderr, "Could not load star catalog file.\n");
         goto cleanup;
     }
-
+    if (state.nStars > 0)
+    {
+        fprintf(stderr, "Expected J2000 format for star entries, got B1950.\n");
+        goto cleanup;
+    }
+    state.nStars = -state.nStars;
 
     // Loop over all L1 files between the requested calibration time.
     // Estimate the L2 calibration for each time
@@ -187,6 +192,8 @@ int main(int argc, char **argv)
 cleanup:
 
     // freeProgramState(&state);
+    if (state.starData != NULL)
+        free(state.starData);
 
     return status;
 }
@@ -202,7 +209,7 @@ void usage(char *name)
     printf(" Options:\n");
     printf("%20s : sets the directory containing THEMIS level 1 (ASI) files. Defaults to \".\".\n", "--l1dir=<l1dir>");
     printf("%20s : sets the directory containing THEMIS level 2 (calibration) files. Defaults to \".\".\n", "--l2dir=<l2dir>");
-    printf("%20s : sets the directory containing the Yale Bright Star Catalog file (BDS5ra). Defaults to \".\".\n", "--stardir=<stardir>");
+    printf("%20s : sets the directory containing the Yale Bright Star Catalog file (BSC5ra). Defaults to \".\".\n", "--stardir=<stardir>");
     printf("%20s : sets the number of calibration stars. Defaults to %d.\n", "--number-of-calibration-stars=N", N_CALIBRATION_STARS);
     printf("%20s : prints this message.\n", "--help");
     printf("%20s : prints author name and license.\n", "--about");

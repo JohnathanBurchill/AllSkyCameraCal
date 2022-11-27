@@ -6,6 +6,7 @@
 #include <string.h>
 #include <stdbool.h>
 #include <math.h>
+#include <sys/stat.h>
 
 #include <cdf.h>
 
@@ -177,6 +178,134 @@ int getCdfFloatArray(CDFid cdf, char *site, char *varNameTemplate, long recordIn
 
 int loadStars(ProgramState *state)
 {
+    char bsc5raFile[FILENAME_MAX+1];
+    int res = snprintf(bsc5raFile, FILENAME_MAX, "%s/BSC5ra", state->stardir);
+
+    struct stat fileInfo = {0};
+
+    int status = ASCC_OK;
+
+    uint8_t *bytes = NULL;
+
+    status = stat(bsc5raFile, &fileInfo);
+    if (status != 0)
+        return ASCC_STAR_FILE;
+
+    size_t nStarBytes = (size_t)fileInfo.st_size - 28;
+
+    FILE *starFile = fopen(bsc5raFile, "r");
+    if (starFile == NULL)
+        return ASCC_STAR_FILE;
+
+    status = readBSC5Int32(starFile, &state->starSequenceOffset);
+    if (status != ASCC_OK)
+        goto cleanup;
+
+    status = readBSC5Int32(starFile, &state->firstStarNumber);
+    if (status != ASCC_OK)
+        goto cleanup;
+
+    status = readBSC5Int32(starFile, &state->nStars);
+    if (status != ASCC_OK)
+        goto cleanup;
+
+    status = readBSC5Int32(starFile, &state->hasStarIds);
+    if (status != ASCC_OK)
+        goto cleanup;
+
+    status = readBSC5Int32(starFile, &state->properMotionIncluded);
+    if (status != ASCC_OK)
+        goto cleanup;
+
+    status = readBSC5Int32(starFile, &state->nMagnitudes);
+    if (status != ASCC_OK)
+        goto cleanup;
+
+    status = readBSC5Int32(starFile, &state->bytesPerStarEntry);
+    if (status != ASCC_OK)
+        goto cleanup;
+
+    bytes = calloc(nStarBytes, 1);
+    if (bytes == NULL)
+    {
+        status = ASCC_MEM;
+        goto cleanup;
+    }
+
+    size_t read = fread(bytes, 1, nStarBytes, starFile);
+    if (read != nStarBytes)
+    {
+        status = ASCC_STAR_FILE;
+        goto cleanup;
+    }
+
+    int nStars = nStarBytes / state->bytesPerStarEntry;
+    state->starData = (Star*) calloc(nStars, sizeof(Star));
+    if (state->starData == NULL)
+        goto cleanup;
+
+    Star *s = NULL;
+    // Convert big endian to little endian
+    for (int i = 0; i < nStars; i++)
+    {
+        s = &state->starData[i];
+        s->catalogNumber = *(float*)(bytes + i*state->bytesPerStarEntry);
+        reverseBytes((uint8_t*)&s->catalogNumber, 4);
+        s->rightAscensionRadian = *(double*)(bytes + i*state->bytesPerStarEntry + 4);
+        reverseBytes((uint8_t*)&s->rightAscensionRadian, 8);
+        s->declinationRadian = *(double*)(bytes + i*state->bytesPerStarEntry + 12);
+        reverseBytes((uint8_t*)&s->declinationRadian, 8);
+        s->spectralType[0] = bytes[i*state->bytesPerStarEntry + 20];
+        s->spectralType[1] = bytes[i*state->bytesPerStarEntry + 21];
+        s->visualMagnitudeTimes100 = *(int16_t*)(bytes + i*state->bytesPerStarEntry + 22);
+        reverseBytes((uint8_t*)&s->visualMagnitudeTimes100, 2);
+        s->raProperMotionRadianPerYear = *(float*)(bytes + i*state->bytesPerStarEntry + 24);
+        reverseBytes((uint8_t*)&s->raProperMotionRadianPerYear, 4);
+        s->decProperMotionRadianPerYear = *(float*)(bytes + i*state->bytesPerStarEntry + 28);
+        reverseBytes((uint8_t*)&s->decProperMotionRadianPerYear, 4);
+    }
+
+cleanup:
+    fclose(starFile);
+    if (bytes != NULL)
+        free(bytes);
+
+    if (status != ASCC_OK)
+        if (state->starData != NULL)
+            free(state->starData);
+
+    return status;
+}
+
+int readBSC5Int32(FILE *f, int32_t *value)
+{
+    if (value == NULL)
+        return ASCC_ARGUMENTS;
+
+    uint8_t buf[4] = {0};
+    uint8_t buf1[4] = {0};
+    int res = fread(buf, 1, 4, f);
+    if (res != 4)
+        return ASCC_BSC5_FILE;
+    for (int i = 0; i < 4; i++)
+        buf1[i] = buf[3-i];
+    *value = *(int32_t*)buf1;
 
     return ASCC_OK;
+}
+
+void reverseBytes(uint8_t *word, int nBytes)
+{
+    if (word == NULL)
+        return;
+
+    uint8_t buf = 0;
+    for (int i = 0; i < nBytes / 2; i++)
+    {
+        buf = word[nBytes - 1 - i];
+        word[nBytes -1 - i] = word[i];
+        word[i] = buf;
+    }
+
+    return;
 }
