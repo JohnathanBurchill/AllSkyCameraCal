@@ -51,7 +51,7 @@ int sortL2Listing(const FTSENT **first, const FTSENT **second)
         
 }
 
-int loadThemisL2File(ProgramState *state)
+int loadThemisLevel2(ProgramState *state)
 {
     char *dir[2] = {state->l2dir, NULL};
     // TODO sort FTS listings to get lastest L2 version first
@@ -74,7 +74,7 @@ int loadThemisL2File(ProgramState *state)
         if ((strncmp(e->fts_name, "thg_l2_asc_", 11) == 0) && (strncmp(e->fts_name + 11, state->site, 4) == 0) && strncmp(e->fts_name + e->fts_namelen - 4, ".cdf", 4) == 0)
         {
             state->l2filename = strdup(e->fts_name); // Track input files, but full path not needed.
-            printf("Got L2 file %s\n", state->l2filename);
+            // printf("Got L2 file %s\n", state->l2filename);
             cdfStatus = CDFopen(e->fts_path, &cdf);
             if (cdfStatus != CDF_OK)
             {
@@ -171,6 +171,12 @@ int getCdfFloatArray(CDFid cdf, char *site, char *varNameTemplate, long recordIn
     cdfStatus = CDFgetVarRangeRecordsByVarName(cdf, cdfVarName, recordIndex, recordIndex, *data);
     if (cdfStatus != CDF_OK)
         return ASCC_CDF_READ;
+
+    return ASCC_OK;
+}
+
+int loadStars(ProgramState *state)
+{
 
     return ASCC_OK;
 }

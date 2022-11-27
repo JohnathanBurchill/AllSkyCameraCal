@@ -94,17 +94,22 @@ int main(int argc, char **argv)
 
     int status = ASCC_OK;
 
-    // Read in pixel elevations and azimuths from L2 file.
-    status = loadThemisL2File(&state);
+    // Read in pixel elevations and azimuths and site geodetic position from L2 file.
+    status = loadThemisLevel2(&state);
     if (status != ASCC_OK)
     {
         fprintf(stderr, "Could not load THEMIS Level 2 calibration file.\n");
-        return EXIT_FAILURE;
+        return status;
     }
 
-    // Read in site geodetic position from L2 file.
-
     // Read in the star catalog (BCS5) sorted by right ascension (BCS5ra)
+    status = loadStars(&state);
+    if (status != ASCC_OK)
+    {
+        fprintf(stderr, "Could not load star catalog file.\n");
+        goto cleanup;
+    }
+
 
     // Loop over all L1 files between the requested calibration time.
     // Estimate the L2 calibration for each time
@@ -161,9 +166,13 @@ int main(int argc, char **argv)
     // new el-az maps minus the original L2 el-az map.
     // If the average arc length or the standard deviation is too large, flag this
     // Save the new L2 calibration in a CDF file.
-    
 
-    return EXIT_SUCCESS;
+
+cleanup:
+
+    // freeProgramState(&state);
+
+    return status;
 }
 
 
