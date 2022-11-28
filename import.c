@@ -107,6 +107,25 @@ int loadThemisLevel2(ProgramState *state)
             if (status != ASCC_OK)
                 break;
 
+            for (int c = 0; c < IMAGE_COLUMNS; c++)
+            {
+                for (int r = 0; r < IMAGE_ROWS; r++)
+                {
+                    if (isfinite(state->l2CameraAzimuths[c][r]) && isfinite(state->l2CameraElevations[c][r]))
+                    {
+                        state->pixelX[c][r] = cos((90.0 - state->l2CameraAzimuths[c][r])*M_PI/180.0) * cos(state->l2CameraElevations[c][r]*M_PI/180.0);
+                        state->pixelY[c][r] = sin((90.0 - state->l2CameraAzimuths[c][r])*M_PI/180.0) * cos(state->l2CameraElevations[c][r]*M_PI/180.0);
+                        state->pixelZ[c][r] = sin(state->l2CameraElevations[c][r]*M_PI/180.0);
+                    }
+                    else
+                    {
+                        state->pixelX[c][r] = NAN;
+                        state->pixelY[c][r] = NAN;
+                        state->pixelZ[c][r] = NAN;
+                    }
+                }
+            }
+
             // printf("Site location (%s): %.3fN %.3fE, altitude %.0f m\n", state->site, state->siteLatitudeGeodetic, state->siteLongitudeGeodetic, state->siteAltitudeMetres);
 
             status = ASCC_OK;

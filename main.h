@@ -69,6 +69,10 @@ typedef struct ProgramState
     float l2CameraElevations[IMAGE_COLUMNS][IMAGE_ROWS];
     float l2CameraAzimuths[IMAGE_COLUMNS][IMAGE_ROWS];
 
+    float pixelX[IMAGE_COLUMNS][IMAGE_ROWS];
+    float pixelY[IMAGE_COLUMNS][IMAGE_ROWS];
+    float pixelZ[IMAGE_COLUMNS][IMAGE_ROWS];
+
     float newCameraElevations[IMAGE_COLUMNS][IMAGE_ROWS];
     float newCameraAzimuths[IMAGE_COLUMNS][IMAGE_ROWS];
 

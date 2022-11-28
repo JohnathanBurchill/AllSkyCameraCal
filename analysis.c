@@ -199,6 +199,13 @@ int analyzeL1FileImages(ProgramState *state, char *l1file)
     int pixVal = 0;
     float totalOuter = 0.0;
     float momentCounter = 0.0;
+    float starx = 0.0;
+    float stary = 0.0;
+    float starz = 0.0;
+    float dx = 0.0;
+    float dy = 0.0;
+    float dz = 0.0;
+
 
     if (calStarInds == NULL || starAzs == NULL || starEls == NULL || starMagnitudes == NULL || starImageColumns == NULL || starImageRows == NULL)
     {
@@ -281,7 +288,13 @@ int analyzeL1FileImages(ProgramState *state, char *l1file)
                     if (!isfinite(state->l2CameraAzimuths[c][r]) || !isfinite(state->l2CameraElevations[c][r]))
                         continue;
 
-                    starAzElDistance = hypotf(starAzs[i] - state->l2CameraAzimuths[c][r], starEls[i] - state->l2CameraElevations[c][r]);
+                    starx = cos((90.0 - starAzs[i])*M_PI/180.0) * cos(starEls[i]*M_PI/180.0);
+                    stary = sin((90.0 - starAzs[i])*M_PI/180.0) * cos(starEls[i]*M_PI/180.0);
+                    starz = sin(starEls[i]*M_PI/180.0);
+                    dx = starx - state->pixelX[c][r];
+                    dy = stary - state->pixelY[c][r];
+                    dz = starz - state->pixelZ[c][r];
+                    starAzElDistance = sqrt(dx * dx + dy * dy + dz * dz);
                     if (starAzElDistance < starMinAzElDistance)
                     {
                         starMinAzElDistance = starAzElDistance;
