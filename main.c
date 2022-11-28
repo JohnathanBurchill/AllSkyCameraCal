@@ -38,9 +38,9 @@ int main(int argc, char **argv)
             nOptions++;
             char *errStr = NULL;
             state.nCalibrationStars = atoi(argv[i]+30);
-            if (state.nCalibrationStars <= MIN_N_CALIBRATION_STARS)
+            if (state.nCalibrationStars < MIN_N_CALIBRATION_STARS_PER_IMAGE)
             {
-                fprintf(stderr, "Number of calibration stars must be at least %d\n", MIN_N_CALIBRATION_STARS);
+                fprintf(stderr, "Number of calibration stars must be at least %d\n", MIN_N_CALIBRATION_STARS_PER_IMAGE);
                 return EXIT_FAILURE;
             }
         }

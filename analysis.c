@@ -205,6 +205,7 @@ int analyzeL1FileImages(ProgramState *state, char *l1file)
     float dx = 0.0;
     float dy = 0.0;
     float dz = 0.0;
+    bool foundNearest = false;
 
 
     if (calStarInds == NULL || starAzs == NULL || starEls == NULL || starMagnitudes == NULL || starImageColumns == NULL || starImageRows == NULL)
@@ -256,8 +257,8 @@ int analyzeL1FileImages(ProgramState *state, char *l1file)
             // TODO use correct calculation (cos dec needed?)
             // Years since J2000: approximate enough for proper motion calculation
             // TODO implement a precise Julian day and year calculator
-            starRa = fmod(star->rightAscensionRadian + star->raProperMotionRadianPerYear * yearsSinceJ2000, 2.0 * M_PI);
-            starDec = fmod(star->declinationRadian + star->decProperMotionRadianPerYear * yearsSinceJ2000, 2.0 * M_PI);
+            starRa = fmod(star->rightAscensionRadian + 0 * star->raProperMotionRadianPerYear * yearsSinceJ2000, 2.0 * M_PI);
+            starDec = fmod(star->declinationRadian + 0 * star->decProperMotionRadianPerYear * yearsSinceJ2000, 2.0 * M_PI);
 
             // Convert RA and DEC to az and el
             radecToazel(imageTime, state->siteLatitudeGeodetic, state->siteLongitudeGeodetic, state->siteAltitudeMetres, starRa, starDec, &starAz, &starEl);
@@ -281,13 +282,14 @@ int analyzeL1FileImages(ProgramState *state, char *l1file)
         for (int i = 0; i < nCalStars; i++)
         {
             starMinAzElDistance = 10000000000.0;
+            foundNearest = false;
             for (int c = 0; c < IMAGE_COLUMNS; c++)
             {
                 for (int r = 0; r < IMAGE_COLUMNS; r++)
                 {
                     if (!isfinite(state->l2CameraAzimuths[c][r]) || !isfinite(state->l2CameraElevations[c][r]))
                         continue;
-
+                    // TODO use a GPU
                     starx = cos((90.0 - starAzs[i])*M_PI/180.0) * cos(starEls[i]*M_PI/180.0);
                     stary = sin((90.0 - starAzs[i])*M_PI/180.0) * cos(starEls[i]*M_PI/180.0);
                     starz = sin(starEls[i]*M_PI/180.0);
@@ -300,39 +302,40 @@ int analyzeL1FileImages(ProgramState *state, char *l1file)
                         starMinAzElDistance = starAzElDistance;
                         starImageColumns[i] = c;
                         starImageRows[i] = r;
+                        foundNearest = true;
                     }
                 }
             }
-            totalInner = 0.0;
-            momentCounter = 0.0;
-            c1 = 0.0;
-            r1 = 0.0;
-            for (int c = -2; c < 2; c++)
+            if (foundNearest)
             {
-                for (int r = -2; r < 2; r++)
+                totalInner = 0.0;
+                momentCounter = 0.0;
+                c1 = 0.0;
+                r1 = 0.0;
+                for (int c = -5; c < 5; c++)
                 {
-                    c0 = starImageColumns[i] + c;
-                    r0 = starImageRows[i] + r;
-                    if (c0 >=0 && c0 < IMAGE_COLUMNS && r0 >= 0 && r0 < IMAGE_ROWS)
+                    for (int r = -5; r < 5; r++)
                     {
-                        pixVal = imagery[c0][r0];
-                        momentCounter++;
-                        totalInner += pixVal;
-                        c1 += c0 * pixVal;
-                        r1 += r0 * pixVal;
-                    }                    
+                        c0 = starImageColumns[i] + c;
+                        r0 = starImageRows[i] + r;
+                        if (c0 >=0 && c0 < IMAGE_COLUMNS && r0 >= 0 && r0 < IMAGE_ROWS)
+                        {
+                            pixVal = imagery[c0][r0];
+                            momentCounter++;
+                            totalInner += pixVal;
+                            c1 += c0 * pixVal;
+                            r1 += r0 * pixVal;
+                        }                    
+                    }
+                }
+                if (momentCounter > 0 && totalInner > 0)
+                {
+                    c1 /= totalInner;
+                    r1 /= totalInner;
+                    printf("%lf %ld %ld %.2f %.2f %.2f %.3f %.3f\n", imageTime, starImageColumns[i], starImageRows[i], c1, r1, starMagnitudes[i], starAzs[i], starEls[i]);
                 }
             }
-            if (momentCounter > 0 && totalInner > 0)
-            {
-                c1 /= totalInner;
-                r1 /= totalInner;
-                printf("%lf %ld %ld %.2f %.2f %.2f %.3f %.3f\n", imageTime, starImageColumns[i], starImageRows[i], c1, r1, starMagnitudes[i], starAzs[i], starEls[i]);
-            }
-
-
         }
-
     }
 
 cleanup:
