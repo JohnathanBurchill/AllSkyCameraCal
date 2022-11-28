@@ -142,11 +142,20 @@ int analyzeL1FileImages(ProgramState *state, char *l1file)
     char cdfVarName[CDF_VAR_NAME_LEN + 1] = {0};
 
     long *calStarInds = NULL;
-    float *starAzs = NULL;
-    float *starEls = NULL;
+    float *starPredictedAzs = NULL;
+    float *starPredictedEls = NULL;
+    float *starXs = NULL;
+    float *starYs = NULL;
+    float *starZs = NULL;
+    float *starMeasuredAzs = NULL;
+    float *starMeasuredEls = NULL;
+    float *stardAzs = NULL;
+    float *stardEls = NULL;
     float *starMagnitudes = NULL;
     long *starImageColumns = NULL;
     long *starImageRows = NULL; 
+    float *starImageMomentColumns = NULL;
+    float *starImageMomentRows = NULL; 
 
     // Get time and continue only if within requested analysis time range
     snprintf(cdfVarName, CDF_VAR_NAME_LEN + 1, "thg_asf_%s_epoch", state->site);
@@ -180,17 +189,27 @@ int analyzeL1FileImages(ProgramState *state, char *l1file)
     double starRa = 0.0;
     double starDec = 0.0;
     int nCalStars = 0;
+    int nCalStarsKept = 0;
     int starInd = 0;
     float starAz = 0.0;
     float starEl = 0.0;
     float starAzElDistance = 0.0;
     float starMinAzElDistance = 0.0;
     calStarInds = calloc(state->nCalibrationStars, sizeof(long));
-    starAzs = calloc(state->nCalibrationStars, sizeof(float));
-    starEls = calloc(state->nCalibrationStars, sizeof(float));
+    starPredictedAzs = calloc(state->nCalibrationStars, sizeof(float));
+    starPredictedEls = calloc(state->nCalibrationStars, sizeof(float));
+    starXs = calloc(state->nCalibrationStars, sizeof(float));
+    starYs = calloc(state->nCalibrationStars, sizeof(float));
+    starZs = calloc(state->nCalibrationStars, sizeof(float));
+    stardAzs = calloc(state->nCalibrationStars, sizeof(float));
+    stardEls = calloc(state->nCalibrationStars, sizeof(float));
+    starMeasuredAzs = calloc(state->nCalibrationStars, sizeof(float));
+    starMeasuredEls = calloc(state->nCalibrationStars, sizeof(float));
     starMagnitudes = calloc(state->nCalibrationStars, sizeof(float));
     starImageColumns = calloc(state->nCalibrationStars, sizeof(long));
     starImageRows = calloc(state->nCalibrationStars, sizeof(long));
+    starImageMomentColumns = calloc(state->nCalibrationStars, sizeof(float));
+    starImageMomentRows = calloc(state->nCalibrationStars, sizeof(float));
     float totalInner = 0.0;
     int c0 = 0;
     int r0 = 0;
@@ -205,10 +224,25 @@ int analyzeL1FileImages(ProgramState *state, char *l1file)
     float dx = 0.0;
     float dy = 0.0;
     float dz = 0.0;
+    float magnitude = 0.0;
+    float azhatx = 0.0;
+    float azhaty = 0.0;
+    float azhatz = 0.0;
+    float elhatx = 0.0;
+    float elhaty = 0.0;
+    float elhatz = 0.0;
+    float meanX = 0.0;
+    float meanY = 0.0;
+    float meanZ = 0.0;
+
     bool foundNearest = false;
 
+    float middleC = IMAGE_COLUMNS / 2.0;
+    float middleR = IMAGE_ROWS / 2.0;
+    float angularDisplacementAboutZenithRadian = 0.0;
+    float angularDisplacementOfZenithRadian = 0.0;
 
-    if (calStarInds == NULL || starAzs == NULL || starEls == NULL || starMagnitudes == NULL || starImageColumns == NULL || starImageRows == NULL)
+    if (calStarInds == NULL || starPredictedAzs == NULL || starPredictedEls == NULL || starMeasuredAzs == NULL || starMeasuredEls == NULL || starMagnitudes == NULL || starImageColumns == NULL || starImageRows == NULL)
     {
         status = ASCC_MEM;
         goto cleanup;
@@ -267,8 +301,8 @@ int analyzeL1FileImages(ProgramState *state, char *l1file)
             if (starEl > CALIBRATION_ELEVATION_BOUND)
             {
                 calStarInds[nCalStars] = starInd;
-                starAzs[nCalStars] = starAz;
-                starEls[nCalStars] = starEl;
+                starPredictedAzs[nCalStars] = starAz;
+                starPredictedEls[nCalStars] = starEl;
                 starMagnitudes[nCalStars] = star->visualMagnitudeTimes100/100.0;
                 nCalStars++;
             }
@@ -278,7 +312,7 @@ int analyzeL1FileImages(ProgramState *state, char *l1file)
         // printf("Got %d calibration stars.\n", nCalStars);
         // for (int i = 0; i < nCalStars; i++)
         //     printf("star %d (ind %ld): magnitude = %.2lf\n", i, calStarInds[i], state->starData[calStarInds[i]].visualMagnitudeTimes100/100.0);
-
+        nCalStarsKept = 0;
         for (int i = 0; i < nCalStars; i++)
         {
             starMinAzElDistance = 10000000000.0;
@@ -290,12 +324,15 @@ int analyzeL1FileImages(ProgramState *state, char *l1file)
                     if (!isfinite(state->l2CameraAzimuths[c][r]) || !isfinite(state->l2CameraElevations[c][r]))
                         continue;
                     // TODO use a GPU
-                    starx = cos((90.0 - starAzs[i])*M_PI/180.0) * cos(starEls[i]*M_PI/180.0);
-                    stary = sin((90.0 - starAzs[i])*M_PI/180.0) * cos(starEls[i]*M_PI/180.0);
-                    starz = sin(starEls[i]*M_PI/180.0);
+                    starx = cos((90.0 - starPredictedAzs[i])*M_PI/180.0) * cos(starPredictedEls[i]*M_PI/180.0);
+                    stary = sin((90.0 - starPredictedAzs[i])*M_PI/180.0) * cos(starPredictedEls[i]*M_PI/180.0);
+                    starz = sin(starPredictedEls[i]*M_PI/180.0);
+                    starXs[i] = starx;
+                    starYs[i] = stary;
+                    starZs[i] = starz;
                     dx = starx - state->pixelX[c][r];
                     dy = stary - state->pixelY[c][r];
-                    dz = starz - state->pixelZ[c][r];
+                    dz = starz - state->pixelZ[c][r];                    
                     starAzElDistance = sqrt(dx * dx + dy * dy + dz * dz);
                     if (starAzElDistance < starMinAzElDistance)
                     {
@@ -312,6 +349,9 @@ int analyzeL1FileImages(ProgramState *state, char *l1file)
                 momentCounter = 0.0;
                 c1 = 0.0;
                 r1 = 0.0;
+                meanX = 0.0;
+                meanY = 0.0;
+                meanZ = 0.0;
                 for (int c = -5; c < 5; c++)
                 {
                     for (int r = -5; r < 5; r++)
@@ -325,17 +365,101 @@ int analyzeL1FileImages(ProgramState *state, char *l1file)
                             totalInner += pixVal;
                             c1 += c0 * pixVal;
                             r1 += r0 * pixVal;
+                            meanX += state->pixelX[c0][r0] * pixVal;
+                            meanY += state->pixelY[c0][r0] * pixVal;
+                            meanZ += state->pixelZ[c0][r0] * pixVal;
                         }                    
                     }
                 }
                 if (momentCounter > 0 && totalInner > 0)
                 {
+                    nCalStarsKept++;
                     c1 /= totalInner;
                     r1 /= totalInner;
-                    printf("%lf %ld %ld %.2f %.2f %.2f %.3f %.3f\n", imageTime, starImageColumns[i], starImageRows[i], c1, r1, starMagnitudes[i], starAzs[i], starEls[i]);
+                    starImageMomentColumns[i] = c1;
+                    starImageMomentRows[i] = r1;
+                    meanX /= totalInner;
+                    meanY /= totalInner;
+                    meanZ /= totalInner;
+                    // Calculate dRa and dDec from measuremed (interpolated) values minus predicted values
+                    dx = starXs[i] - meanX;
+                    dy = starYs[i] - meanY;
+                    dz = starZs[i] - meanZ;
+                    // printf("dx,dy,dz = %f %f %f\n", dx, dy, dz);
+                    starMeasuredAzs[i] = 90.0 - atan2(meanY, meanX) / M_PI * 180.0;
+                    starMeasuredEls[i] = atan(meanZ / hypotf(meanX, meanY)) / M_PI * 180.0;
+
+                    // dRa and dDec
+                    // rhat is (starx, stary, starz)
+                    azhatx = - stary;
+                    azhaty = starx;
+                    azhatz = 0.0;
+                    magnitude = sqrt(azhatx * azhatx + azhaty * azhaty + azhatz * azhatz);
+                    azhatx /= magnitude;
+                    azhaty /= magnitude;
+                    elhatx = - starz * azhaty;
+                    elhaty = starz * azhatx;
+                    elhatz = starx * azhaty - stary * azhatx;
+                    magnitude = sqrt(elhatx * elhatx + elhaty * elhaty + elhatz * elhatz);
+                    elhatx /= magnitude;
+                    elhaty /= magnitude;
+                    elhatz /= magnitude;
+
+                    // TODO need to multiply stardRas by cos(dec)?
+                    stardAzs[i] = (dx * azhatx + dy * azhaty + dz * azhatz);
+                    stardEls[i] = (dx * elhatx + dy * elhaty + dz * elhatz);
+                }
+                else
+                {
+                    // Flag this star as not used
+                    calStarInds[i] = -1;
                 }
             }
         }
+        // If enough cal stars,
+        // Find zenith from centre of rotation
+        //  model rotation angle as function of time and least-squares fit rotation centre?
+        // Rotate look direction to align zenith
+        // Calculate angular displacements about zenith
+        // Rotate around zenith
+        // Collect information about quality of solution
+
+        // Or, can always just rotate about centre of CCD image?
+        // CCD center is given in L2 file? No. Just in idlsav SKYMAP files
+        // Iterating rotations about middle of image might work
+        if (nCalStarsKept >= MIN_N_CALIBRATION_STARS_PER_IMAGE)
+        {
+            float meandAz = 0.0;
+            float meandEl = 0.0;
+            for (int i = 0; i < nCalStars; i++)
+            {
+                if (calStarInds[i] != -1)
+                {
+                    meandAz += stardAzs[i];
+                    // A rotation away from zenith (in declination)
+                    // will be positive on one side and negative on the other
+                    // TODO improve this estimate taking this into account?
+                    // For now, take magnitude of error only for elevations
+                    meandEl += fabsf(stardEls[i]); 
+                }
+            }
+            meandAz /= (float)nCalStarsKept;
+            meandEl /= (float)nCalStarsKept;
+
+            for (int i = 0; i < nCalStars; i++)
+            {
+                if (calStarInds[i] != -1)
+                {
+                    // TODO update the pixel azimuths and elevations by adding the dAzs and dEls?
+                    // and store all info in a CDF
+                    // Looks like the AZ / EL map needs to be rotated and translated,
+                    // not just translated.
+                    printf("%lf %ld %ld %.3f %.3f %.3f %.4f %.4f %.4f %.4f %.4f %.4f %.4f %.4f\n", imageTime, starImageColumns[i], starImageRows[i], starImageMomentColumns[i], starImageMomentRows[i], starMagnitudes[i], starPredictedAzs[i], starPredictedEls[i], starMeasuredAzs[i], starMeasuredEls[i], stardAzs[i] / M_PI * 180.0, stardEls[i] / M_PI * 180.0, meandAz / M_PI * 180.0, meandEl / M_PI * 180.0);
+                }
+            }
+        }
+
+
     }
 
 cleanup:
@@ -344,16 +468,34 @@ cleanup:
 
     if (calStarInds != NULL)
         free(calStarInds);
-    if (starAzs != NULL)
-        free(starAzs);
-    if (starEls != NULL)
-        free(starEls);
+    if (starPredictedAzs != NULL)
+        free(starPredictedAzs);
+    if (starPredictedEls != NULL)
+        free(starPredictedEls);
+    if (starXs != NULL)
+        free(starXs);
+    if (starYs != NULL)
+        free(starYs);
+    if (starZs != NULL)
+        free(starZs);
+    if (stardAzs != NULL)
+        free(stardAzs);
+    if (stardEls != NULL)
+        free(stardEls);
+    if (starMeasuredAzs != NULL)
+        free(starMeasuredAzs);
+    if (starMeasuredEls != NULL)
+        free(starMeasuredEls);
     if (starMagnitudes != NULL)
         free(starMagnitudes);
-    // if (starImageColumns != NULL)
-    //     free(starImageColumns);
-    // if (starImageRows != NULL)
-    //     free(starImageRows);
+    if (starImageColumns != NULL)
+        free(starImageColumns);
+    if (starImageRows != NULL)
+        free(starImageRows);
+    if (starImageMomentColumns != NULL)
+        free(starImageMomentColumns);
+    if (starImageMomentRows != NULL)
+        free(starImageMomentRows);
 
     return status;
 }
