@@ -299,14 +299,27 @@ int loadStars(ProgramState *state)
         s->spectralType[1] = bytes[i*state->bytesPerStarEntry + 21];
         s->visualMagnitudeTimes100 = *(int16_t*)(bytes + i*state->bytesPerStarEntry + 22);
         reverseBytes((uint8_t*)&s->visualMagnitudeTimes100, 2);
-        s->raProperMotionRadianPerYear = *(float*)(bytes + i*state->bytesPerStarEntry + 24);
-        reverseBytes((uint8_t*)&s->raProperMotionRadianPerYear, 4);
         s->decProperMotionRadianPerYear = *(float*)(bytes + i*state->bytesPerStarEntry + 28);
         reverseBytes((uint8_t*)&s->decProperMotionRadianPerYear, 4);
+        s->raProperMotionRadianPerYear = *(float*)(bytes + i*state->bytesPerStarEntry + 24);
+        reverseBytes((uint8_t*)&s->raProperMotionRadianPerYear, 4);
+        // RA proper motion is cos(dec) * d RA / dt. Convert to d RA / dt:
+        // Website labels the proper motion in radian per year, but cross-checking
+        // against ASCII catalog shows it is milliradian per year.
+        s->raProperMotionRadianPerYear = s->raProperMotionRadianPerYear / cos(s->declinationRadian) / 1000.0;
+        s->decProperMotionRadianPerYear = s->decProperMotionRadianPerYear / 1000.0;
     }
 
     // Sort from brightest to dimmest
     qsort(state->starData, nStars, sizeof(Star), &sortStars);
+
+    // printf("nStars: %d\n", nStars);
+    // for (int i = 0; i < nStars; i++)
+    // {
+    //     s = &state->starData[i];
+    //     printf("%f %.4f %.10f %.10f\n", s->catalogNumber, s->declinationRadian / M_PI * 180., s->raProperMotionRadianPerYear, s->decProperMotionRadianPerYear);
+    // }
+    // exit(0);
 
     // for (int i = 0; i < nStars; i++)
     //     printf("Magnitude: %.2f, RA %.3f DEC %.3f\n", state->starData[i].visualMagnitudeTimes100/100.0, state->starData[i].rightAscensionRadian / M_PI*180.0, state->starData[i].declinationRadian / M_PI * 180.0);

@@ -254,11 +254,11 @@ int analyzeL1FileImages(ProgramState *state, char *l1file)
         while (nCalStars < state->nCalibrationStars && starInd < state->nStars)
         {
             star = &state->starData[starInd];
-            // TODO use correct calculation (cos dec needed?)
             // Years since J2000: approximate enough for proper motion calculation
             // TODO implement a precise Julian day and year calculator
-            starRa = fmod(star->rightAscensionRadian + 0 * star->raProperMotionRadianPerYear * yearsSinceJ2000, 2.0 * M_PI);
-            starDec = fmod(star->declinationRadian + 0 * star->decProperMotionRadianPerYear * yearsSinceJ2000, 2.0 * M_PI);
+            // TODO take into account parallax
+            starRa = fmod(star->rightAscensionRadian + star->raProperMotionRadianPerYear * yearsSinceJ2000, 2.0 * M_PI);
+            starDec = fmod(star->declinationRadian + star->decProperMotionRadianPerYear * yearsSinceJ2000, 2.0 * M_PI);
 
             // Convert RA and DEC to az and el
             radecToazel(imageTime, state->siteLatitudeGeodetic, state->siteLongitudeGeodetic, state->siteAltitudeMetres, starRa, starDec, &starAz, &starEl);
