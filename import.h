@@ -7,7 +7,7 @@
 int loadThemisLevel2(ProgramState *state);
 
 float getCdfFloat(CDFid cdf, char *site, char *varNameTemplate);
-int getCdfFloatArray(CDFid cdf, char *site, char *varNameTemplate, long recordIndex, float **data);
+int getCdfFloatArray(CDFid cdf, char *site, char *varNameTemplate, long recordIndex, void **data);
 
 int loadStars(ProgramState *state);
 int readBSC5Int32(FILE *f, int32_t *value);

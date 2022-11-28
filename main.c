@@ -1,6 +1,7 @@
 #include "main.h"
 
 #include "import.h"
+#include "analysis.h"
 
 #include <stdlib.h>
 #include <stdio.h>
@@ -91,6 +92,12 @@ int main(int argc, char **argv)
     if (state.lastCalTime == ILLEGAL_EPOCH_VALUE)
     {
         fprintf(stderr, "The last calibration date is garbage.\n");
+        return EXIT_FAILURE;
+    }
+
+    if (state.lastCalTime <= state.firstCalTime)
+    {
+        fprintf(stderr, "Last calibration time must be greater than first calibration time.\n");
         return EXIT_FAILURE;
     }
 

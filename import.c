@@ -68,6 +68,7 @@ int loadThemisLevel2(ProgramState *state)
     long numRecs = 0;
     CDFdata data = NULL;
     float *pointer = NULL;
+    uint16_t *pointeru16 = NULL;
 
     while (e)
     {
@@ -92,20 +93,21 @@ int loadThemisLevel2(ProgramState *state)
             }
 
             pointer = &state->l2CameraElevations[0][0];
-            status = getCdfFloatArray(cdf, state->site, "thg_asf_%s_elev", 0, &pointer);
+            status = getCdfFloatArray(cdf, state->site, "thg_asf_%s_elev", 0, (void*)&pointer);
             if (status != ASCC_OK)
                 break;
 
             pointer = &state->l2CameraAzimuths[0][0];
-            status = getCdfFloatArray(cdf, state->site, "thg_asf_%s_azim", 0, &pointer);
+            status = getCdfFloatArray(cdf, state->site, "thg_asf_%s_azim", 0, (void*)&pointer);
+            if (status != ASCC_OK)
+                break;
+
+            pointeru16 = &state->sitePixelOffsets[0][0];
+            status = getCdfFloatArray(cdf, state->site, "thg_asf_%s_offset", 0, (void*)&pointeru16);
             if (status != ASCC_OK)
                 break;
 
             // printf("Site location (%s): %.3fN %.3fE, altitude %.0f m\n", state->site, state->siteLatitudeGeodetic, state->siteLongitudeGeodetic, state->siteAltitudeMetres);
-
-            // for (int i = 0; i < IMAGE_COLUMNS; i++)
-            //     for (int j = 0; j < IMAGE_ROWS; j++)
-            //         printf("pixel(%d,%d): elev: %.2f azim %.2f\n", i, j, state->l2CameraElevations[i][j], state->l2CameraAzimuths[i][j]);
 
             status = ASCC_OK;
             break;
@@ -150,7 +152,7 @@ float getCdfFloat(CDFid cdf, char *site, char *varNameTemplate)
 // Caller frees memory at pointer when values are no longer needed
 // Caller needs to know how many elements are in the record from 
 // THEMIS documentation or cdfdumping the L2 file
-int getCdfFloatArray(CDFid cdf, char *site, char *varNameTemplate, long recordIndex, float **data)
+int getCdfFloatArray(CDFid cdf, char *site, char *varNameTemplate, long recordIndex, void **data)
 {
     if (site == NULL || varNameTemplate == NULL || data == NULL)
         return ASCC_ARGUMENTS;

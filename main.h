@@ -9,6 +9,9 @@
 #define IMAGE_ROWS 256
 #define IMAGE_COLUMNS 256
 
+// How close to the horizon to look for calibration stars
+#define CALIBRATION_ELEVATION_BOUND 10
+
 enum ASCC_STATUS
 {
     ASCC_OK = 0,
@@ -62,10 +65,9 @@ typedef struct ProgramState
     float siteLongitudeGeodetic;
     float siteAltitudeMetres;
 
-    float *sitePixelOffsets;
+    uint16_t sitePixelOffsets[IMAGE_COLUMNS][IMAGE_ROWS];
     float l2CameraElevations[IMAGE_COLUMNS][IMAGE_ROWS];
     float l2CameraAzimuths[IMAGE_COLUMNS][IMAGE_ROWS];
-    float l2CameraRightAscensions[IMAGE_COLUMNS][IMAGE_ROWS];
 
     float newCameraElevations[IMAGE_COLUMNS][IMAGE_ROWS];
     float newCameraAzimuths[IMAGE_COLUMNS][IMAGE_ROWS];
