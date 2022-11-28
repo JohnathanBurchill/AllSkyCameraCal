@@ -77,7 +77,7 @@ int analyzeImagery(ProgramState *state)
         fileStopEpoch = fileStartEpoch + 3600000; // one hour: L1 files cover 1 hour intervals
         if (fileStartEpoch != ILLEGAL_EPOCH_VALUE && !((fileStartEpoch < t1 && fileStopEpoch <= t1) || (fileStartEpoch >= t2 && fileStopEpoch > t2)))
         {
-            printf("Analyzing images in %s\n", e->fts_name);
+            // printf("Analyzing images in %s\n", e->fts_name);
             analyzeL1FileImages(state, fts->fts_path);
         }
 
@@ -141,6 +141,13 @@ int analyzeL1FileImages(ProgramState *state, char *l1file)
 
     char cdfVarName[CDF_VAR_NAME_LEN + 1] = {0};
 
+    long *calStarInds = NULL;
+    float *starAzs = NULL;
+    float *starEls = NULL;
+    float *starMagnitudes = NULL;
+    long *starImageColumns = NULL;
+    long *starImageRows = NULL; 
+
     // Get time and continue only if within requested analysis time range
     snprintf(cdfVarName, CDF_VAR_NAME_LEN + 1, "thg_asf_%s_epoch", state->site);
     cdfStatus = CDFgetzVarMaxWrittenRecNum(cdf, CDFgetVarNum(cdf, cdfVarName), &maxFileRecord);
@@ -151,7 +158,7 @@ int analyzeL1FileImages(ProgramState *state, char *l1file)
     }
 
     nFileImages = maxFileRecord + 1;
-    printf("file records: %ld\n", nFileImages);
+    // printf("file records: %ld\n", nFileImages);
 
     double imageTime = 0.0;
     char timeString[EPOCH4_STRING_LEN+1];
@@ -167,14 +174,39 @@ int analyzeL1FileImages(ProgramState *state, char *l1file)
     float tmp = 0.0;
 
     // Updated on each function cal;
-    static int indRaBegin = 0;
-    static int indRaEnd = 0;
     Star *star = NULL;
     double t0J2000 = computeEPOCH(2000, 1, 1, 12, 0, 0, 0);
     float yearsSinceJ2000 = 0.0;
     double starRa = 0.0;
     double starDec = 0.0;
-    bool raWrapped = false;
+    int nCalStars = 0;
+    int starInd = 0;
+    float starAz = 0.0;
+    float starEl = 0.0;
+    float starAzElDistance = 0.0;
+    float starMinAzElDistance = 0.0;
+    calStarInds = calloc(state->nCalibrationStars, sizeof(long));
+    starAzs = calloc(state->nCalibrationStars, sizeof(float));
+    starEls = calloc(state->nCalibrationStars, sizeof(float));
+    starMagnitudes = calloc(state->nCalibrationStars, sizeof(float));
+    starImageColumns = calloc(state->nCalibrationStars, sizeof(long));
+    starImageRows = calloc(state->nCalibrationStars, sizeof(long));
+    float totalInner = 0.0;
+    int c0 = 0;
+    int r0 = 0;
+    float c1 = 0.0;
+    float r1 = 0.0;
+    int pixVal = 0;
+    float totalOuter = 0.0;
+    float momentCounter = 0.0;
+
+    if (calStarInds == NULL || starAzs == NULL || starEls == NULL || starMagnitudes == NULL || starImageColumns == NULL || starImageRows == NULL)
+    {
+        status = ASCC_MEM;
+        goto cleanup;
+    }
+    for (int i = 0; i < state->nCalibrationStars; i++)
+        calStarInds[i] = -1;
 
     // printf("El minmax: %.2f %.2f\n", state->minElevation, state->maxElevation);
     // printf("Az minmax: %.2f %.2f\n", state->minAzimuth, state->maxAzimuth);
@@ -208,82 +240,197 @@ int analyzeL1FileImages(ProgramState *state, char *l1file)
                 // printf("%d,%d: %d\n", c, r, imagery[c][r]);
             }
 
-        // calculate min and max RA and DEC for this site at this epoch:
-        // Max DEC is site latitude + (90 minus CALIBRATION_ELEVATION_BOUND) clipped to 90
-        if (state->siteLatitudeGeodetic > 0)
-        {
-            maxDec = (state->siteLatitudeGeodetic + 90 - CALIBRATION_ELEVATION_BOUND);
-            maxDec = (maxDec > 90 ? 90. : maxDec) * M_PI / 180.0;
-            azelToradec(imageTime, state->siteLatitudeGeodetic, state->siteLongitudeGeodetic, state->siteAltitudeMetres, 180, CALIBRATION_ELEVATION_BOUND, &tmp, &minDec);
-        }
-        else
-        {
-            minDec = (state->siteLatitudeGeodetic - (90 - CALIBRATION_ELEVATION_BOUND));
-            minDec = (minDec < -90 ? -90. : minDec) * M_PI / 180.0;
-            azelToradec(imageTime, state->siteLatitudeGeodetic, state->siteLongitudeGeodetic, state->siteAltitudeMetres, 0, CALIBRATION_ELEVATION_BOUND, &tmp, &maxDec);
-        }
-
-        azelToradec(imageTime, state->siteLatitudeGeodetic, state->siteLongitudeGeodetic, state->siteAltitudeMetres, 90, CALIBRATION_ELEVATION_BOUND, &maxRa, &tmp);
-        azelToradec(imageTime, state->siteLatitudeGeodetic, state->siteLongitudeGeodetic, state->siteAltitudeMetres, 270, CALIBRATION_ELEVATION_BOUND, &minRa, &tmp);
-
-        if (minRa < 0.0)
-            minRa += 2.0 * M_PI;
-        
-        if (maxRa < 0.0)
-            maxRa += 2.0 * M_PI;
-
-        printf("%s RA: Min,Max %.3f,%.3f  Dec: Min,Max %.3f,%.3f\n", timeString, minRa/M_PI*180.0, maxRa/M_PI*180.0, minDec/M_PI*180.0, maxDec/M_PI*180.0);
-
-        // Update start and stop indices of stars within requested RA range
-        // Years since J2000: approximate enough for proper motion calculation
-        // TODO implement a precise Julian day and year calculator
         yearsSinceJ2000 = (imageTime - t0J2000) / 1000.0 / 86400. / 365.25;
-        star = &state->starData[indRaBegin];
-        for (;;)
+        nCalStars = 0;
+        starInd = 0;
+        while (nCalStars < state->nCalibrationStars && starInd < state->nStars)
         {
+            star = &state->starData[starInd];
+            // TODO use correct calculation (cos dec needed?)
+            // Years since J2000: approximate enough for proper motion calculation
+            // TODO implement a precise Julian day and year calculator
             starRa = fmod(star->rightAscensionRadian + star->raProperMotionRadianPerYear * yearsSinceJ2000, 2.0 * M_PI);
-            if (starRa >= minRa || (raWrapped && starRa <= minRa))
-                break;
-            indRaBegin++;
-            if (indRaBegin >= state->nStars)
-            {
-                indRaBegin = 0;
-                raWrapped = true;
-            }
-            star = &state->starData[indRaBegin];
-        }
-        if (indRaBegin >= state->nStars)
-            indRaBegin = 0;
+            starDec = fmod(star->declinationRadian + star->decProperMotionRadianPerYear * yearsSinceJ2000, 2.0 * M_PI);
 
-        star = &state->starData[indRaEnd];
-        raWrapped = false;
-        for (;;)
+            // Convert RA and DEC to az and el
+            radecToazel(imageTime, state->siteLatitudeGeodetic, state->siteLongitudeGeodetic, state->siteAltitudeMetres, starRa, starDec, &starAz, &starEl);
+            // If star is in field of view, increase nCalStars
+            // and store this star's index in the list of calibration stars
+            if (starEl > CALIBRATION_ELEVATION_BOUND)
+            {
+                calStarInds[nCalStars] = starInd;
+                starAzs[nCalStars] = starAz;
+                starEls[nCalStars] = starEl;
+                starMagnitudes[nCalStars] = star->visualMagnitudeTimes100/100.0;
+                nCalStars++;
+            }
+            // Next brightest star
+            starInd++;
+        }
+        // printf("Got %d calibration stars.\n", nCalStars);
+        // for (int i = 0; i < nCalStars; i++)
+        //     printf("star %d (ind %ld): magnitude = %.2lf\n", i, calStarInds[i], state->starData[calStarInds[i]].visualMagnitudeTimes100/100.0);
+
+        for (int i = 0; i < nCalStars; i++)
         {
-            starRa = star->rightAscensionRadian + star->raProperMotionRadianPerYear * yearsSinceJ2000;
-            if (starRa >= maxRa || (raWrapped && starRa < maxRa))
-                break;
-            indRaEnd++;
-            if (indRaEnd >= state->nStars)
+            starMinAzElDistance = 10000000000.0;
+            for (int c = 0; c < IMAGE_COLUMNS; c++)
             {
-                indRaEnd = 0;
-                raWrapped = true;
-            }
-            star = &state->starData[indRaEnd];
-        }
-        if (indRaEnd >= state->nStars)
-            indRaEnd = 0;
+                for (int r = 0; r < IMAGE_COLUMNS; r++)
+                {
+                    if (!isfinite(state->l2CameraAzimuths[c][r]) || !isfinite(state->l2CameraElevations[c][r]))
+                        continue;
 
-        printf("raBegin: %d, raEnd: %d\n", indRaBegin, indRaEnd);
+                    starAzElDistance = hypotf(starAzs[i] - state->l2CameraAzimuths[c][r], starEls[i] - state->l2CameraElevations[c][r]);
+                    if (starAzElDistance < starMinAzElDistance)
+                    {
+                        starMinAzElDistance = starAzElDistance;
+                        starImageColumns[i] = c;
+                        starImageRows[i] = r;
+                    }
+                }
+            }
+            totalInner = 0.0;
+            momentCounter = 0.0;
+            c1 = 0.0;
+            r1 = 0.0;
+            for (int c = -2; c < 2; c++)
+            {
+                for (int r = -2; r < 2; r++)
+                {
+                    c0 = starImageColumns[i] + c;
+                    r0 = starImageRows[i] + r;
+                    if (c0 >=0 && c0 < IMAGE_COLUMNS && r0 >= 0 && r0 < IMAGE_ROWS)
+                    {
+                        pixVal = imagery[c0][r0];
+                        momentCounter++;
+                        totalInner += pixVal;
+                        c1 += c0 * pixVal;
+                        r1 += r0 * pixVal;
+                    }                    
+                }
+            }
+            if (momentCounter > 0 && totalInner > 0)
+            {
+                c1 /= totalInner;
+                r1 /= totalInner;
+                printf("%lf %ld %ld %.2f %.2f %.2f %.3f %.3f\n", imageTime, starImageColumns[i], starImageRows[i], c1, r1, starMagnitudes[i], starAzs[i], starEls[i]);
+            }
+
+
+        }
+
     }
 
 cleanup:
     if (cdf != NULL)
         CDFclose(cdf);
 
+    if (calStarInds != NULL)
+        free(calStarInds);
+    if (starAzs != NULL)
+        free(starAzs);
+    if (starEls != NULL)
+        free(starEls);
+    if (starMagnitudes != NULL)
+        free(starMagnitudes);
+    // if (starImageColumns != NULL)
+    //     free(starImageColumns);
+    // if (starImageRows != NULL)
+    //     free(starImageRows);
+
     return status;
 }
 
+int radecToazel(double time, float geodeticLatitudeDeg, float longitudeDeg, float altitudeM, float ra, float dec, float *az, float *el)
+{
+    int status = ASCC_OK;
 
+    float x0 = 0.0;
+    float y0 = 0.0;
+    float z0 = 0.0;
+    float d = 0.0;
+
+    geodeticToXYZ(geodeticLatitudeDeg, longitudeDeg, altitudeM, &x0, &y0, &z0, &d);
+
+    float vertx = x0;
+    float verty = y0;
+    float vertz = z0 + d;
+    float mag = sqrt(vertx * vertx + verty * verty + vertz * vertz);
+    
+    // zenith
+    float zenithx = vertx / mag;
+    float zenithy = verty / mag;
+    float zenithz = vertz / mag;
+
+    // zhat
+    float zhatx = 0.0;
+    float zhaty = 0.0;
+    float zhatz = 1.0;
+    // East is zhat cross vert
+    float eastx = zhaty * zenithz - zhatz * zenithy;
+    float easty = -zhatx * zenithz + zhatz * zenithx;
+    float eastz = zhatx * zenithy - zhaty * zenithx;
+
+    mag = sqrt(eastx * eastx + easty * easty + eastz * eastz);
+    eastx /= mag;
+    easty /= mag;
+    eastz /= mag;
+
+    // Not anywhere near a pole. Ignore cases with lat = 90 or -90
+    // north = zenith cross east
+    float northx = zenithy * eastz - zenithz * easty;
+    float northy = -zenithx * eastz + zenithz * eastx;
+    float northz = zenithx * easty - zenithy * eastx;
+    // Should be fine, but force unit length anyway
+    mag = sqrt(northx * northx + northy * northy + northz * northz);
+    northx /= mag;
+    northy /= mag;
+    northz /= mag;
+
+    // printf("x: %.2f y: %.2f z: %.2f\n", x0, y0, z0);
+
+    // Now have a coordinate system local east, north, up (geodetic up)
+    // represented in X, Y, Z (ECEF) coodinates.
+    // They share the same origin.
+    // A unit vector in the ENU system can be represented in the XYZ system,
+    // from which RA and DEC can be calculated
+
+    float theta = M_PI_2 - dec;
+
+    // Take into account the time
+    // add Earth's rotation since J2000 12 noon.
+    // https://en.wikipedia.org/wiki/Sidereal_time
+    // TODO take into account leap seconds
+    double tj2000 = computeEPOCH(2000, 1, 1, 12, 0, 0, 0);
+    double deltat = (time - tj2000) / 1000.0 / 86400.0;
+    double rotationAngleRad = fmod(2.0 * M_PI * (0.7790572732640 + 1.00273781191135448 * deltat), 2.0 * M_PI);
+    double raVal = ra - rotationAngleRad;
+    if (raVal < 0)
+        raVal += 2.0 * M_PI;
+
+    float phi = raVal;
+    float x = cos(phi) * sin(theta);
+    float y = sin(phi) * sin(theta);
+    float z = cos(theta);
+
+    float e = eastx * x + easty * y + eastz * z;
+    float n = northx * x + northy * y + northz * z;
+    float u = zenithx * x + zenithy * y + zenithz * z;
+
+    float elVal = atan(u / sqrt(e*e + n*n)) / M_PI * 180.0;
+    float azVal = 90 - atan2(n, e) / M_PI * 180.0;
+
+    // Star catalog RA and DEC are int radian, return values in these units
+    if (az != NULL)
+        *az = azVal;
+
+    if (el != NULL)
+        *el = elVal;
+
+    return status;
+
+}
 int azelToradec(double time, float geodeticLatitudeDeg, float longitudeDeg, float altitudeM, float az, float el, float *ra, float *dec)
 {
     int status = ASCC_OK;

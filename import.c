@@ -177,6 +177,26 @@ int getCdfFloatArray(CDFid cdf, char *site, char *varNameTemplate, long recordIn
     return ASCC_OK;
 }
 
+int sortStars(const void *first, const void *second)
+{
+    if (first == NULL)
+        return 1;
+    else if (second == NULL)
+        return -1;
+
+    Star *a = (Star*)first;
+    Star *b = (Star*)second;
+
+    // The brighter star has the lower magnitude
+    if (a->visualMagnitudeTimes100 >= b->visualMagnitudeTimes100)
+        return 1;
+    else if (a->visualMagnitudeTimes100 < b->visualMagnitudeTimes100)
+        return -1;
+    else
+        return 0;
+    
+}
+
 int loadStars(ProgramState *state)
 {
     char bsc5raFile[FILENAME_MAX+1];
@@ -246,7 +266,7 @@ int loadStars(ProgramState *state)
         goto cleanup;
 
     Star *s = NULL;
-    // Convert big endian to little endian
+    // Convert big endian to little endian and fill the Star array
     for (int i = 0; i < nStars; i++)
     {
         s = &state->starData[i];
@@ -265,6 +285,12 @@ int loadStars(ProgramState *state)
         s->decProperMotionRadianPerYear = *(float*)(bytes + i*state->bytesPerStarEntry + 28);
         reverseBytes((uint8_t*)&s->decProperMotionRadianPerYear, 4);
     }
+
+    // Sort from brightest to dimmest
+    qsort(state->starData, nStars, sizeof(Star), &sortStars);
+
+    // for (int i = 0; i < nStars; i++)
+    //     printf("Magnitude: %.2f, RA %.3f DEC %.3f\n", state->starData[i].visualMagnitudeTimes100/100.0, state->starData[i].rightAscensionRadian / M_PI*180.0, state->starData[i].declinationRadian / M_PI * 180.0);
 
 cleanup:
     fclose(starFile);

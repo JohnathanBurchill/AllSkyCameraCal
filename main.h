@@ -4,7 +4,7 @@
 #include <stdlib.h>
 #include <stdint.h>
 
-#define N_CALIBRATION_STARS 25
+#define N_CALIBRATION_STARS 50
 #define MIN_N_CALIBRATION_STARS 10
 #define IMAGE_ROWS 256
 #define IMAGE_COLUMNS 256
