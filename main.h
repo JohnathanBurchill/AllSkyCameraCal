@@ -1,6 +1,8 @@
 #ifndef _MAIN_H
 #define _MAIN_H
 
+#include "star.h"
+
 #include <stdlib.h>
 #include <stdint.h>
 
@@ -8,9 +10,15 @@
 #define MIN_N_CALIBRATION_STARS_PER_IMAGE 1
 #define IMAGE_ROWS 256
 #define IMAGE_COLUMNS 256
+#define STAR_SEARCH_BOX_WIDTH 9
+#define MIN_STAR_SEARCH_BOX_WIDTH 3
+#define MAX_PEAK_SIGNAL_FOR_MOMENTS 30000
+#define MAX_BACKGROUND_SIGNAL_FOR_MOMENTS 4000
+#define STAR_MAX_PIXEL_JITTER 2.0
+#define J200EPOCH 63113947200000.0
 
 // How close to the horizon to look for calibration stars
-#define CALIBRATION_ELEVATION_BOUND 10
+#define CALIBRATION_ELEVATION_BOUND 20
 
 enum ASCC_STATUS
 {
@@ -24,17 +32,6 @@ enum ASCC_STATUS
     ASCC_STAR_FILE = 7
 };
 
-typedef struct Star
-{
-    float catalogNumber;
-    double rightAscensionRadian;
-    double declinationRadian;
-    char spectralType[2];
-    int16_t visualMagnitudeTimes100;
-    float raProperMotionRadianPerYear;
-    float decProperMotionRadianPerYear;
-} Star;
-
 typedef struct ProgramState
 {
     char *site;
@@ -45,6 +42,8 @@ typedef struct ProgramState
     double lastCalTime;
 
     int nCalibrationStars;
+    int starSearchBoxWidth;
+    float starMaxJitterPixels;
 
     char *stardir;
     Star *starData;

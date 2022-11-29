@@ -1,6 +1,8 @@
 #include "analysis.h"
 
 #include "main.h"
+#include "star.h"
+
 #include <stdio.h>
 #include <stdbool.h>
 #include <fts.h>
@@ -8,6 +10,10 @@
 #include <math.h>
 
 #include <cdf.h>
+
+#include <gsl/gsl_statistics_float.h>
+#include <gsl/gsl_sort_float.h>
+
 
 int sortL1Listing(const FTSENT **first, const FTSENT **second)
 {
@@ -138,24 +144,17 @@ int analyzeL1FileImages(ProgramState *state, char *l1file)
     long nImagesAnalyzed = 0;
     long maxFileRecord = 0;
     long nFileImages = 0;
+    CalibrationStar *calStars = calloc(state->nCalibrationStars, sizeof *calStars);
+    if (calStars == NULL)
+        return ASCC_MEM;
+    CalibrationStar *cal = NULL;
+
+    float *azVals = calloc(state->nCalibrationStars, sizeof *azVals);
+    float *elVals = calloc(state->nCalibrationStars, sizeof *elVals);
+    if (azVals == NULL || elVals == NULL)
+        return ASCC_MEM;
 
     char cdfVarName[CDF_VAR_NAME_LEN + 1] = {0};
-
-    long *calStarInds = NULL;
-    float *starPredictedAzs = NULL;
-    float *starPredictedEls = NULL;
-    float *starXs = NULL;
-    float *starYs = NULL;
-    float *starZs = NULL;
-    float *starMeasuredAzs = NULL;
-    float *starMeasuredEls = NULL;
-    float *stardAzs = NULL;
-    float *stardEls = NULL;
-    float *starMagnitudes = NULL;
-    long *starImageColumns = NULL;
-    long *starImageRows = NULL; 
-    float *starImageMomentColumns = NULL;
-    float *starImageMomentRows = NULL; 
 
     // Get time and continue only if within requested analysis time range
     snprintf(cdfVarName, CDF_VAR_NAME_LEN + 1, "thg_asf_%s_epoch", state->site);
@@ -176,48 +175,15 @@ int analyzeL1FileImages(ProgramState *state, char *l1file)
     uint16_t *imagePointer = &imagery[0][0];
     long index = 0;
 
-    float minRa = 0.0;
-    float maxRa = 0.0;
-    float minDec = 0.0;
-    float maxDec = 0.0;
-    float tmp = 0.0;
-
-    // Updated on each function cal;
-    Star *star = NULL;
-    double t0J2000 = computeEPOCH(2000, 1, 1, 12, 0, 0, 0);
-    float yearsSinceJ2000 = 0.0;
-    double starRa = 0.0;
-    double starDec = 0.0;
+    // Updated on each function call
     int nCalStars = 0;
     int nCalStarsKept = 0;
-    int starInd = 0;
-    float starAz = 0.0;
-    float starEl = 0.0;
     float starAzElDistance = 0.0;
     float starMinAzElDistance = 0.0;
-    calStarInds = calloc(state->nCalibrationStars, sizeof(long));
-    starPredictedAzs = calloc(state->nCalibrationStars, sizeof(float));
-    starPredictedEls = calloc(state->nCalibrationStars, sizeof(float));
-    starXs = calloc(state->nCalibrationStars, sizeof(float));
-    starYs = calloc(state->nCalibrationStars, sizeof(float));
-    starZs = calloc(state->nCalibrationStars, sizeof(float));
-    stardAzs = calloc(state->nCalibrationStars, sizeof(float));
-    stardEls = calloc(state->nCalibrationStars, sizeof(float));
-    starMeasuredAzs = calloc(state->nCalibrationStars, sizeof(float));
-    starMeasuredEls = calloc(state->nCalibrationStars, sizeof(float));
-    starMagnitudes = calloc(state->nCalibrationStars, sizeof(float));
-    starImageColumns = calloc(state->nCalibrationStars, sizeof(long));
-    starImageRows = calloc(state->nCalibrationStars, sizeof(long));
-    starImageMomentColumns = calloc(state->nCalibrationStars, sizeof(float));
-    starImageMomentRows = calloc(state->nCalibrationStars, sizeof(float));
-    float totalInner = 0.0;
-    int c0 = 0;
-    int r0 = 0;
-    float c1 = 0.0;
-    float r1 = 0.0;
-    int pixVal = 0;
+    int cmax = 0;
+    int rmax = 0;
     float totalOuter = 0.0;
-    float momentCounter = 0.0;
+    int momentCounter = 0;
     float starx = 0.0;
     float stary = 0.0;
     float starz = 0.0;
@@ -227,36 +193,19 @@ int analyzeL1FileImages(ProgramState *state, char *l1file)
     float magnitude = 0.0;
     float azhatx = 0.0;
     float azhaty = 0.0;
-    float azhatz = 0.0;
     float elhatx = 0.0;
     float elhaty = 0.0;
     float elhatz = 0.0;
-    float meanX = 0.0;
-    float meanY = 0.0;
-    float meanZ = 0.0;
 
-    float nSignal = 0.0;
-    float minSignal = 0.0;
-    float maxSignal = 0.0;
     float meanSignal = 0.0;
 
     bool foundNearest = false;
 
-    float middleC = IMAGE_COLUMNS / 2.0;
-    float middleR = IMAGE_ROWS / 2.0;
-    float angularDisplacementAboutZenithRadian = 0.0;
-    float angularDisplacementOfZenithRadian = 0.0;
-
-    if (calStarInds == NULL || starPredictedAzs == NULL || starPredictedEls == NULL || starMeasuredAzs == NULL || starMeasuredEls == NULL || starMagnitudes == NULL || starImageColumns == NULL || starImageRows == NULL)
-    {
-        status = ASCC_MEM;
-        goto cleanup;
-    }
-    for (int i = 0; i < state->nCalibrationStars; i++)
-        calStarInds[i] = -1;
+    int boxHalfWidth = state->starSearchBoxWidth / 2;
 
     // printf("El minmax: %.2f %.2f\n", state->minElevation, state->maxElevation);
     // printf("Az minmax: %.2f %.2f\n", state->minAzimuth, state->maxAzimuth);
+
     for (long ind = 0; ind < nFileImages; ind++)
     {
         index = ind;
@@ -287,41 +236,24 @@ int analyzeL1FileImages(ProgramState *state, char *l1file)
                 // printf("%d,%d: %d\n", c, r, imagery[c][r]);
             }
 
-        yearsSinceJ2000 = (imageTime - t0J2000) / 1000.0 / 86400. / 365.25;
-        nCalStars = 0;
-        starInd = 0;
-        while (nCalStars < state->nCalibrationStars && starInd < state->nStars)
-        {
-            star = &state->starData[starInd];
-            // Years since J2000: approximate enough for proper motion calculation
-            // TODO implement a precise Julian day and year calculator
-            // TODO take into account parallax
-            starRa = fmod(star->rightAscensionRadian + star->raProperMotionRadianPerYear * yearsSinceJ2000, 2.0 * M_PI);
-            starDec = fmod(star->declinationRadian + star->decProperMotionRadianPerYear * yearsSinceJ2000, 2.0 * M_PI);
+        nCalStars = selectStars(state, imageTime, calStars);
 
-            // Convert RA and DEC to az and el
-            radecToazel(imageTime, state->siteLatitudeGeodetic, state->siteLongitudeGeodetic, state->siteAltitudeMetres, starRa, starDec, &starAz, &starEl);
-            // If star is in field of view, increase nCalStars
-            // and store this star's index in the list of calibration stars
-            if (starEl > CALIBRATION_ELEVATION_BOUND)
-            {
-                calStarInds[nCalStars] = starInd;
-                starPredictedAzs[nCalStars] = starAz;
-                starPredictedEls[nCalStars] = starEl;
-                starMagnitudes[nCalStars] = star->visualMagnitudeTimes100/100.0;
-                nCalStars++;
-            }
-            // Next brightest star
-            starInd++;
-        }
         // printf("Got %d calibration stars.\n", nCalStars);
         // for (int i = 0; i < nCalStars; i++)
         //     printf("star %d (ind %ld): magnitude = %.2lf\n", i, calStarInds[i], state->starData[calStarInds[i]].visualMagnitudeTimes100/100.0);
         nCalStarsKept = 0;
+
+        float azelX = 0.0;
+        float azelY = 0.0;
+        float azelZ = 0.0;
+
         for (int i = 0; i < nCalStars; i++)
         {
+            cal = &calStars[i];
             starMinAzElDistance = 10000000000.0;
             foundNearest = false;
+            cmax = 0;
+            rmax = 0;
             for (int c = 0; c < IMAGE_COLUMNS; c++)
             {
                 for (int r = 0; r < IMAGE_COLUMNS; r++)
@@ -329,120 +261,76 @@ int analyzeL1FileImages(ProgramState *state, char *l1file)
                     if (!isfinite(state->l2CameraAzimuths[c][r]) || !isfinite(state->l2CameraElevations[c][r]))
                         continue;
                     // TODO use a GPU
-                    starx = cos((90.0 - starPredictedAzs[i])*M_PI/180.0) * cos(starPredictedEls[i]*M_PI/180.0);
-                    stary = sin((90.0 - starPredictedAzs[i])*M_PI/180.0) * cos(starPredictedEls[i]*M_PI/180.0);
-                    starz = sin(starPredictedEls[i]*M_PI/180.0);
-                    starXs[i] = starx;
-                    starYs[i] = stary;
-                    starZs[i] = starz;
+                    starx = cos((90.0 - cal->predictedAz)*M_PI/180.0) * cos(cal->predictedEl*M_PI/180.0);
+                    stary = sin((90.0 - cal->predictedAz)*M_PI/180.0) * cos(cal->predictedEl*M_PI/180.0);
+                    starz = sin(cal->predictedEl*M_PI/180.0);
+                    cal->predictedAzElX = starx;
+                    cal->predictedAzElY = stary;
+                    cal->predictedAzElZ = starz;
                     dx = starx - state->pixelX[c][r];
                     dy = stary - state->pixelY[c][r];
-                    dz = starz - state->pixelZ[c][r];                    
+                    dz = starz - state->pixelZ[c][r];
                     starAzElDistance = sqrt(dx * dx + dy * dy + dz * dz);
                     if (starAzElDistance < starMinAzElDistance)
                     {
                         starMinAzElDistance = starAzElDistance;
-                        starImageColumns[i] = c;
-                        starImageRows[i] = r;
+                        cal->predictedImageColumn = c;
+                        cal->predictedImageRow = r;
                         foundNearest = true;
                     }
                 }
             }
             if (foundNearest)
             {
-                totalInner = 0.0;
                 momentCounter = 0.0;
-                c1 = 0.0;
-                r1 = 0.0;
-                meanX = 0.0;
-                meanY = 0.0;
-                meanZ = 0.0;
-                maxSignal = -1.0;
-                minSignal = 1e10;
-                for (int c = -2; c < 3; c++)
-                {
-                    for (int r = -2; r < 3; r++)
-                    {
-                        c0 = starImageColumns[i] + c;
-                        r0 = starImageRows[i] + r;
-                        if (c0 >=0 && c0 < IMAGE_COLUMNS && r0 >= 0 && r0 < IMAGE_ROWS)
-                        {
-                            if (fabsf(c) > 1 || fabsf(c) > 1)
-                            {
-                                meanSignal += imagery[c][r];
-                                nSignal++;
-                                if (imagery[c][r] > maxSignal)
-                                    maxSignal = imagery[c][r];
-                                else if (imagery[c][r] < minSignal)
-                                    minSignal = imagery[c][r];
-                            }
-                        }
-                    }
-                    meanSignal /= nSignal;                    
-                }
-                for (int c = -1; c < 2; c++)
-                {
-                    for (int r = -1; r < 2; r++)
-                    {
-                        c0 = starImageColumns[i] + c;
-                        r0 = starImageRows[i] + r;
-                        if (c0 >=0 && c0 < IMAGE_COLUMNS && r0 >= 0 && r0 < IMAGE_ROWS)
-                        {
-                            pixVal = imagery[c0][r0] - meanSignal - 100;
-                            if (pixVal < 0.0)
-                                pixVal = 0.0;
-                            momentCounter++;
-                            totalInner += pixVal;
-                            c1 += c0 * pixVal;
-                            r1 += r0 * pixVal;
-                            meanX += state->pixelX[c0][r0] * pixVal;
-                            meanY += state->pixelY[c0][r0] * pixVal;
-                            meanZ += state->pixelZ[c0][r0] * pixVal;
-                        }                    
-                    }
-                }
-                if (momentCounter > 0 && totalInner > 0)
-                {
-                    nCalStarsKept++;
-                    c1 /= totalInner;
-                    r1 /= totalInner;
-                    starImageMomentColumns[i] = c1;
-                    starImageMomentRows[i] = r1;
-                    meanX /= totalInner;
-                    meanY /= totalInner;
-                    meanZ /= totalInner;
-                    // Calculate dRa and dDec from measuremed (interpolated) values minus predicted values
-                    dx = starXs[i] - meanX;
-                    dy = starYs[i] - meanY;
-                    dz = starZs[i] - meanZ;
-                    // printf("dx,dy,dz = %f %f %f\n", dx, dy, dz);
-                    starMeasuredAzs[i] = 90.0 - atan2(meanY, meanX) / M_PI * 180.0;
-                    starMeasuredEls[i] = atan(meanZ / hypotf(meanX, meanY)) / M_PI * 180.0;
+                // Do a first search of neighbors for actual star signal
+                meanSignal = calculateMeanSignal(imagery, boxHalfWidth, cal->predictedImageColumn, cal->predictedImageRow);
+                if (!isfinite(meanSignal) || meanSignal > MAX_BACKGROUND_SIGNAL_FOR_MOMENTS)
+                    continue;
 
-                    // dRa and dDec
-                    // rhat is (starx, stary, starz)
-                    azhatx = - stary;
-                    azhaty = starx;
-                    azhatz = 0.0;
-                    magnitude = sqrt(azhatx * azhatx + azhaty * azhaty + azhatz * azhatz);
+                momentCounter = calculatePositionOfMax(imagery, boxHalfWidth, cal->predictedImageColumn, cal->predictedImageRow, &cmax, &rmax);
+                if (momentCounter == 0)
+                    continue;
+
+                // Refine search using new estimate for box center and a small box size
+                momentCounter = calculateMoments(state, imagery, cal, 2, (float)cmax, (float)rmax, roundf(meanSignal) + 10);
+
+                if (momentCounter > 0 && cal->meanImageSignalAboveThreshold > 0.0)
+                {
+                    // printf("momentCounter: %d\n", momentCounter);
+
+                    nCalStarsKept++;
+                    cal->includeInCalibration = true;
+                    // Calculate dRa and dDec from measuremed (interpolated) values minus predicted values
+                    dx = cal->predictedAzElX - cal->measuredAzElX;
+                    dy = cal->predictedAzElY - cal->measuredAzElY;
+                    dz = cal->predictedAzElZ - cal->measuredAzElZ;
+                    // printf("dx,dy,dz = %f %f %f\n", dx, dy, dz);
+                    cal->measuredAz = 90.0 - atan2(cal->measuredAzElY, cal->measuredAzElX) / M_PI * 180.0;
+                    cal->measuredEl = atan(cal->measuredAzElZ / hypotf(cal->measuredAzElX, cal->measuredAzElY)) / M_PI * 180.0;
+
+                    // detlaAz and deltaEl
+                    // rhat is measuredAzElX, measuredAzElY, measuredAzElZ
+                    azhatx = - cal->measuredAzElY;
+                    azhaty = cal->measuredAzElX;
+                    magnitude = sqrt(azhatx * azhatx + azhaty * azhaty);
                     azhatx /= magnitude;
                     azhaty /= magnitude;
-                    elhatx = - starz * azhaty;
-                    elhaty = starz * azhatx;
-                    elhatz = starx * azhaty - stary * azhatx;
+                    elhatx = - cal->measuredAzElZ * azhaty;
+                    elhaty = cal->measuredAzElZ * azhatx;
+                    elhatz = cal->measuredAzElX * cal->measuredAzElY - cal->measuredAzElY * cal->measuredAzElX;
                     magnitude = sqrt(elhatx * elhatx + elhaty * elhaty + elhatz * elhatz);
                     elhatx /= magnitude;
                     elhaty /= magnitude;
                     elhatz /= magnitude;
-
                     // TODO need to multiply stardRas by cos(dec)?
-                    stardAzs[i] = (dx * azhatx + dy * azhaty + dz * azhatz);
-                    stardEls[i] = (dx * elhatx + dy * elhaty + dz * elhatz);
+                    cal->deltaAz= (dx * azhatx + dy * azhaty);
+                    cal->deltaEl = (dx * elhatx + dy * elhaty + dz * elhatz);
                 }
                 else
                 {
                     // Flag this star as not used
-                    calStarInds[i] = -1;
+                    cal->includeInCalibration = false;
                 }
             }
         }
@@ -459,32 +347,46 @@ int analyzeL1FileImages(ProgramState *state, char *l1file)
         // Iterating rotations about middle of image might work
         if (nCalStarsKept >= MIN_N_CALIBRATION_STARS_PER_IMAGE)
         {
-            float meandAz = 0.0;
-            float meandEl = 0.0;
+            int statCounter = 0;
+
             for (int i = 0; i < nCalStars; i++)
             {
-                if (calStarInds[i] != -1)
+                cal = &calStars[i];
+                if (cal->includeInCalibration && (ind == 0 || cal->newStarAtThisIndex || (fabsf(cal->imageMomentColumn - cal->previousImageMomentColumn) < STAR_MAX_PIXEL_JITTER && fabsf(cal->imageMomentRow - cal->previousImageMomentRow) < STAR_MAX_PIXEL_JITTER)))
                 {
-                    meandAz += stardAzs[i];
                     // A rotation away from zenith (in declination)
                     // will be positive on one side and negative on the other
                     // TODO improve this estimate taking this into account?
                     // For now, take magnitude of error only for elevations
-                    meandEl += fabsf(stardEls[i]); 
+                    azVals[statCounter] = cal->deltaAz;
+                    elVals[statCounter] = fabsf(cal->deltaEl);
+                    statCounter++;
                 }
+                cal->previousImageMomentColumn = cal->imageMomentColumn;
+                cal->previousImageMomentRow = cal->imageMomentRow;
             }
-            meandAz /= (float)nCalStarsKept;
-            meandEl /= (float)nCalStarsKept;
+
+            float statAz = gsl_stats_float_median(azVals, 1, statCounter);
+            float statEl = gsl_stats_float_median(elVals, 1, statCounter);
+            // gsl_sort_float(azVals, 1, statCounter);
+            // float statAz = gsl_stats_float_trmean_from_sorted_data(0.25, azVals, 1, statCounter);
+            // gsl_sort_float(elVals, 1, statCounter);
+            // float statEl = gsl_stats_float_trmean_from_sorted_data(0.25, elVals, 1, statCounter);
 
             for (int i = 0; i < nCalStars; i++)
             {
-                if (calStarInds[i] != -1)
+                cal = &calStars[i];
+                if (cal->includeInCalibration)
                 {
                     // TODO update the pixel azimuths and elevations by adding the dAzs and dEls?
                     // and store all info in a CDF
                     // Looks like the AZ / EL map needs to be rotated and translated,
                     // not just translated.
-                    printf("%lf %ld %ld %.3f %.3f %.3f %.4f %.4f %.4f %.4f %.4f %.4f %.4f %.4f\n", imageTime, starImageColumns[i], starImageRows[i], starImageMomentColumns[i], starImageMomentRows[i], starMagnitudes[i], starPredictedAzs[i], starPredictedEls[i], starMeasuredAzs[i], starMeasuredEls[i], stardAzs[i] / M_PI * 180.0, stardEls[i] / M_PI * 180.0, meandAz / M_PI * 180.0, meandEl / M_PI * 180.0);
+                    printf("%lf %ld %ld %.3f %.3f %.3f %.4f %.4f %.4f %.4f %.4f %.4f %.4f %.4f\n", imageTime, cal->predictedImageColumn, cal->predictedImageRow, cal->imageMomentColumn, cal->imageMomentRow, cal->magnitude, cal->predictedAz, cal->predictedEl, cal->measuredAz, cal->measuredEl, cal->deltaAz / M_PI * 180.0, cal->deltaEl / M_PI * 180.0, statAz / M_PI * 180.0, statEl / M_PI * 180.0);
+                }
+                else
+                {
+                    printf("%lf %ld %ld %.3f %.3f %.3f %.4f %.4f %.4f %.4f %.4f %.4f %.4f %.4f\n", imageTime, cal->predictedImageColumn, cal->predictedImageRow, NAN, NAN, cal->magnitude, cal->predictedAz, cal->predictedEl, NAN, NAN, NAN, NAN, NAN, NAN);
                 }
             }
         }
@@ -496,36 +398,8 @@ cleanup:
     if (cdf != NULL)
         CDFclose(cdf);
 
-    if (calStarInds != NULL)
-        free(calStarInds);
-    if (starPredictedAzs != NULL)
-        free(starPredictedAzs);
-    if (starPredictedEls != NULL)
-        free(starPredictedEls);
-    if (starXs != NULL)
-        free(starXs);
-    if (starYs != NULL)
-        free(starYs);
-    if (starZs != NULL)
-        free(starZs);
-    if (stardAzs != NULL)
-        free(stardAzs);
-    if (stardEls != NULL)
-        free(stardEls);
-    if (starMeasuredAzs != NULL)
-        free(starMeasuredAzs);
-    if (starMeasuredEls != NULL)
-        free(starMeasuredEls);
-    if (starMagnitudes != NULL)
-        free(starMagnitudes);
-    if (starImageColumns != NULL)
-        free(starImageColumns);
-    if (starImageRows != NULL)
-        free(starImageRows);
-    if (starImageMomentColumns != NULL)
-        free(starImageMomentColumns);
-    if (starImageMomentRows != NULL)
-        free(starImageMomentRows);
+    if (calStars != NULL)
+        free(calStars);
 
     return status;
 }
@@ -750,4 +624,204 @@ void geodeticToXYZ(float glat, float glon, float altm, float *x, float *y, float
         *dVal = (float)d;
 
     return;
+}
+
+int selectStars(ProgramState *state, double imageTime, CalibrationStar *calStars)
+{
+    if (state == NULL || calStars == NULL)
+        return 0;
+        
+    int starInd = 0;
+    Star *star = NULL;
+
+    float starRa = 0.0;
+    float starDec = 0.0;
+    float starAz = 0.0;
+    float starEl = 0.0;
+
+    // Years since J2000: approximate enough for proper motion calculation
+    // TODO implement a precise Julian day and year calculator
+    // TODO take into account parallax
+    float yearsSinceJ2000 = (float) (imageTime - J200EPOCH) / 1000.0 / 86400. / 365.25;
+
+    int nStars = 0;
+
+    while (nStars < state->nCalibrationStars && starInd < state->nStars)
+    {
+        star = &state->starData[starInd];
+        starRa = fmod(star->rightAscensionRadian + star->raProperMotionRadianPerYear * yearsSinceJ2000, 2.0 * M_PI);
+        starDec = fmod(star->declinationRadian + star->decProperMotionRadianPerYear * yearsSinceJ2000, 2.0 * M_PI);
+
+        // Convert RA and DEC to az and el
+        radecToazel(imageTime, state->siteLatitudeGeodetic, state->siteLongitudeGeodetic, state->siteAltitudeMetres, starRa, starDec, &starAz, &starEl);
+        // If star is in field of view, increase nCalStars
+        // and store this star's index in the list of calibration stars
+        if (starEl > CALIBRATION_ELEVATION_BOUND)
+        {
+            calStars[nStars].star = star;
+            if (starInd != calStars[nStars].catalogIndex)
+                calStars[nStars].newStarAtThisIndex = true;
+            else
+                calStars[nStars].newStarAtThisIndex = false;
+            calStars[nStars].catalogIndex = starInd;
+            calStars[nStars].predictedAz = starAz;
+            calStars[nStars].predictedEl = starEl;
+            calStars[nStars].magnitude = star->visualMagnitudeTimes100 / 100.0;
+            // TODO handle change in star ID for this image
+            // Used to reject stars which have moved too much from one image to the next
+            calStars[nStars].previousImageMomentColumn= calStars[nStars].imageMomentColumn;
+            calStars[nStars].previousImageMomentRow = calStars[nStars].imageMomentRow;
+            nStars++;
+        }
+        // Next brightest star
+        starInd++;
+    }
+
+    return nStars;
+
+}
+
+// Returns number of pixels used to construct moments
+int calculateMoments(ProgramState *state, uint16_t image[IMAGE_COLUMNS][IMAGE_ROWS], CalibrationStar *cal, int boxHalfWidth, float boxCenterColumn, float boxCenterRow, int pixelThreshold)
+{
+    if (state == NULL || image == NULL || cal == NULL)
+        return 0;
+
+    int c0 = 0;
+    int r0 = 0;
+    float c1 = 0;
+    float r1 = 0;
+    int pixVal = 0.0;
+    int momentCounter = 0;
+    int boxTotal = 0;
+    float meanSignal = 0.0;
+    int maxSignalAboveThreshold = 0;
+    float meanAzElX = 0.0;
+    float meanAzElY = 0.0;
+    float meanAzElZ = 0.0;
+    // printf("Threshold: %d, meanHeight: %f\n", pixelThreshold, cal->meanImageSignalAboveThreshold);
+
+    for (int c = -boxHalfWidth; c <= boxHalfWidth; c++)
+    {
+        for (int r = -boxHalfWidth; r <= boxHalfWidth; r++)
+        {
+
+            c0 = floorf(boxCenterColumn) + c;
+            r0 = floorf(boxCenterRow) + r;
+            // printf("%d\n", image[c0][r0]);
+            if (c0 >=0 && c0 < IMAGE_COLUMNS && r0 >= 0 && r0 < IMAGE_ROWS)
+            {
+                pixVal = image[c0][r0];
+                if (pixVal < pixelThreshold || pixVal > MAX_PEAK_SIGNAL_FOR_MOMENTS)
+                    continue;
+                pixVal -= pixelThreshold;
+                if (pixVal < 0)
+                    pixVal = 0;
+                momentCounter++;
+                boxTotal += pixVal;
+                c1 += (float)c0 * (float)pixVal;
+                r1 += (float)r0 * (float)pixVal;
+                meanAzElX += state->pixelX[c0][r0] * (float)pixVal;
+                meanAzElY += state->pixelY[c0][r0] * (float)pixVal;
+                meanAzElZ += state->pixelZ[c0][r0] * (float)pixVal;
+                if (pixVal > maxSignalAboveThreshold)
+                    maxSignalAboveThreshold = pixVal;
+            }        
+        }
+    }
+    if (momentCounter > 0 && boxTotal > 0)
+    {
+        // printf("momC: %f\n", c1 / (float)boxTotal);
+        cal->imageMomentColumn = c1 / (float)boxTotal + 0.5;
+        cal->imageMomentRow = r1 / (float)boxTotal + 0.5;
+        cal->measuredAzElX = meanAzElX / (float)boxTotal;
+        cal->measuredAzElY = meanAzElY / (float)boxTotal;
+        cal->measuredAzElZ = meanAzElZ / (float)boxTotal;
+        cal->meanImageSignalAboveThreshold = (float)boxTotal / (float)momentCounter;
+        cal->backgroundThreshold = (float)pixelThreshold;
+    }
+    else
+    {
+        cal->imageMomentColumn = 0.0;
+        cal->imageMomentRow = 0.0;
+        cal->measuredAzElX = 0.0;
+        cal->measuredAzElY = 0.0;
+        cal->measuredAzElZ = 0.0;
+        cal->meanImageSignalAboveThreshold = 0.0;
+        cal->backgroundThreshold = 0.0;
+    }
+
+    return momentCounter;
+}
+
+float calculateMeanSignal(uint16_t image[IMAGE_COLUMNS][IMAGE_ROWS], int boxHalfWidth, float boxCenterColumn, float boxCenterRow)
+{
+    if (image == NULL)
+        return NAN;
+
+    int c0 = 0;
+    int r0 = 0;
+    int momentCounter = 0;
+    int boxTotal = 0;
+    float mean = NAN;
+
+    for (int c = -boxHalfWidth; c <= boxHalfWidth; c++)
+    {
+        for (int r = -boxHalfWidth; r <= boxHalfWidth; r++)
+        {
+            c0 = floorf(boxCenterColumn) + c;
+            r0 = floorf(boxCenterRow) + r;
+            if (c0 >=0 && c0 < IMAGE_COLUMNS && r0 >= 0 && r0 < IMAGE_ROWS)
+            {
+                momentCounter++;
+                boxTotal += image[c0][r0];
+            }        
+        }
+    }
+    if (momentCounter > 0 && boxTotal > 0)
+        mean = (float)boxTotal / (float)momentCounter;
+
+    return mean;
+
+}
+
+// Returns number of pixels used to estimate maximum
+int calculatePositionOfMax(uint16_t image[IMAGE_COLUMNS][IMAGE_ROWS], int boxHalfWidth, float boxCenterColumn, float boxCenterRow, int *cmax, int *rmax)
+{
+    if (image == NULL || cmax == NULL || rmax == NULL)
+        return 0;
+
+    int c0 = 0;
+    int r0 = 0;
+    int momentCounter = 0;
+    int cm = 0;
+    int rm = 0;
+    int max = 0;
+
+    for (int c = -boxHalfWidth; c <= boxHalfWidth; c++)
+    {
+        for (int r = -boxHalfWidth; r <= boxHalfWidth; r++)
+        {
+            c0 = floorf(boxCenterColumn) + c;
+            r0 = floorf(boxCenterRow) + r;
+            if (c0 >=0 && c0 < IMAGE_COLUMNS && r0 >= 0 && r0 < IMAGE_ROWS)
+            {
+                momentCounter++;
+                if (image[c0][r0] > max)
+                {
+                    max = image[c0][r0];
+                    cm = c0;
+                    rm = r0;
+                }
+            }        
+        }
+    }
+    if (momentCounter > 0)
+    {
+        *cmax = cm;
+        *rmax = rm;
+    }
+
+    return momentCounter;
+
 }

@@ -15,6 +15,8 @@ int main(int argc, char **argv)
 
     ProgramState state = {0};
     state.nCalibrationStars = N_CALIBRATION_STARS;
+    state.starSearchBoxWidth = STAR_SEARCH_BOX_WIDTH;
+    state.starMaxJitterPixels = STAR_MAX_PIXEL_JITTER;
     state.l1dir = ".";
     state.l2dir = ".";
     state.stardir = ".";
@@ -40,7 +42,29 @@ int main(int argc, char **argv)
             state.nCalibrationStars = atoi(argv[i]+30);
             if (state.nCalibrationStars < MIN_N_CALIBRATION_STARS_PER_IMAGE)
             {
-                fprintf(stderr, "Number of calibration stars must be at least %d\n", MIN_N_CALIBRATION_STARS_PER_IMAGE);
+                fprintf(stderr, "Number of calibration stars must be at least %d.\n", MIN_N_CALIBRATION_STARS_PER_IMAGE);
+                return EXIT_FAILURE;
+            }
+        }
+        else if (strncmp(argv[i], "--star-search-box-width=", 24) == 0)
+        {
+            nOptions++;
+            char *errStr = NULL;
+            state.starSearchBoxWidth = atoi(argv[i]+24);
+            if (state.starSearchBoxWidth < MIN_STAR_SEARCH_BOX_WIDTH)
+            {
+                fprintf(stderr, "Star search box width must be at least %d pixels.\n", MIN_STAR_SEARCH_BOX_WIDTH);
+                return EXIT_FAILURE;
+            }
+        }
+        else if (strncmp(argv[i], "--star-max-jitter-pixels=", 25) == 0)
+        {
+            nOptions++;
+            char *errStr = NULL;
+            state.starMaxJitterPixels = atof(argv[i]+25);
+            if (state.starMaxJitterPixels <= 0.0)
+            {
+                fprintf(stderr, "Star search box width must be greater than 0.0 pixels.\n");
                 return EXIT_FAILURE;
             }
         }
@@ -139,11 +163,6 @@ int main(int argc, char **argv)
     }
     state.nStars = -state.nStars;
 
-    // Loop over all L1 files between the requested calibration time.
-
-    status = analyzeImagery(&state);
-
-
     // Don't need L2 pixel directions.
         // Need only an approximate starting point to locate stars
         // Like center pixel as zenith and bottom is geographic north
@@ -154,8 +173,6 @@ int main(int argc, char **argv)
         // position (all geocentric) are simpler.
         // But it would be good to validate results against official L2
         // calibration. So leave this as a future development?
-
-    
 
     // Estimate the L2 calibration for each time
     // OR: get at least one star in each image and accumlate the positions with
@@ -216,6 +233,8 @@ int main(int argc, char **argv)
     // If the average arc length or the standard deviation is too large, flag this
     // Save the new L2 calibration in a CDF file.
 
+    // Loop over all L1 files between the requested calibration time.
+    status = analyzeImagery(&state);
 
 cleanup:
 
@@ -229,7 +248,7 @@ cleanup:
 
 void usage(char *name)
 {
-    printf("Usage: %s <site> <firstCalDate> <lastCalDate> [--l1dir=<l1dir>] [--l2dir=<l2dir>] [--stardir=<stardir>] [--number-of-calibration-stars=N] [--help] [--usage]\n", name);
+    printf("Usage: %s <site> <firstCalDate> <lastCalDate> [--l1dir=<l1dir>] [--l2dir=<l2dir>] [--stardir=<stardir>] [--number-of-calibration-stars=N] [--star-search-box-width=<widthInPixels>] [--star-max-jitter-pixels=<value>] [--help] [--usage]\n", name);
     printf(" estimates new THEMIS ASI elevation and azimuth map for <site> using suitable ASI images from <firstCalDate> to <lastCalDate>.\n");
     printf(" Dates have the form yyyy-mm-ddTHH:MM:SS.sss interpreted as universal times.\n");
     printf(" <l1dir> is the path to the directory containing the THEMIS level 1 ASI files.\n");
@@ -239,6 +258,8 @@ void usage(char *name)
     printf("%20s : sets the directory containing THEMIS level 2 (calibration) files. Defaults to \".\".\n", "--l2dir=<l2dir>");
     printf("%20s : sets the directory containing the Yale Bright Star Catalog file (BSC5ra). Defaults to \".\".\n", "--stardir=<stardir>");
     printf("%20s : sets the number of calibration stars. Defaults to %d.\n", "--number-of-calibration-stars=N", N_CALIBRATION_STARS);
+    printf("%20s : sets the width of the calibration star search box. Defaults to %d.\n", "--star-search-box-width=N", STAR_SEARCH_BOX_WIDTH);
+    printf("%20s : sets the maximum change in star image position from previous image to be included in error estimation. Defaults to %.1f.\n", "--star-max-jitter-pixels=<value>", STAR_MAX_PIXEL_JITTER);
     printf("%20s : prints this message.\n", "--help");
     printf("%20s : prints author name and license.\n", "--about");
 
