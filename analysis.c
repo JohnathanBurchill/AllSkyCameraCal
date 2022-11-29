@@ -235,6 +235,11 @@ int analyzeL1FileImages(ProgramState *state, char *l1file)
     float meanY = 0.0;
     float meanZ = 0.0;
 
+    float nSignal = 0.0;
+    float minSignal = 0.0;
+    float maxSignal = 0.0;
+    float meanSignal = 0.0;
+
     bool foundNearest = false;
 
     float middleC = IMAGE_COLUMNS / 2.0;
@@ -352,15 +357,40 @@ int analyzeL1FileImages(ProgramState *state, char *l1file)
                 meanX = 0.0;
                 meanY = 0.0;
                 meanZ = 0.0;
-                for (int c = -5; c < 5; c++)
+                maxSignal = -1.0;
+                minSignal = 1e10;
+                for (int c = -2; c < 3; c++)
                 {
-                    for (int r = -5; r < 5; r++)
+                    for (int r = -2; r < 3; r++)
                     {
                         c0 = starImageColumns[i] + c;
                         r0 = starImageRows[i] + r;
                         if (c0 >=0 && c0 < IMAGE_COLUMNS && r0 >= 0 && r0 < IMAGE_ROWS)
                         {
-                            pixVal = imagery[c0][r0];
+                            if (fabsf(c) > 1 || fabsf(c) > 1)
+                            {
+                                meanSignal += imagery[c][r];
+                                nSignal++;
+                                if (imagery[c][r] > maxSignal)
+                                    maxSignal = imagery[c][r];
+                                else if (imagery[c][r] < minSignal)
+                                    minSignal = imagery[c][r];
+                            }
+                        }
+                    }
+                    meanSignal /= nSignal;                    
+                }
+                for (int c = -1; c < 2; c++)
+                {
+                    for (int r = -1; r < 2; r++)
+                    {
+                        c0 = starImageColumns[i] + c;
+                        r0 = starImageRows[i] + r;
+                        if (c0 >=0 && c0 < IMAGE_COLUMNS && r0 >= 0 && r0 < IMAGE_ROWS)
+                        {
+                            pixVal = imagery[c0][r0] - meanSignal - 100;
+                            if (pixVal < 0.0)
+                                pixVal = 0.0;
                             momentCounter++;
                             totalInner += pixVal;
                             c1 += c0 * pixVal;
