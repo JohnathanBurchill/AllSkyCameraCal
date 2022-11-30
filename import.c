@@ -1,5 +1,7 @@
 #include "import.h"
 
+#include <readsave.h>
+
 #include <stdlib.h>
 #include <stdio.h>
 #include <fts.h>
@@ -144,7 +146,6 @@ int loadThemisLevel2(ProgramState *state)
 
     return status;
 }
-
 
 float getCdfFloat(CDFid cdf, char *site, char *varNameTemplate)
 {
@@ -367,4 +368,155 @@ void reverseBytes(uint8_t *word, int nBytes)
     }
 
     return;
+}
+
+
+int loadSkymap(ProgramState *state)
+{
+    if (state == NULL)
+        return ASCC_ARGUMENTS;
+
+    int status = ASCC_OK;
+    if (state->skymapfilename == NULL)
+    {
+        char *dir[2] = {state->skymapdir, NULL};
+        // TODO sort FTS listings to get lastest L2 version first
+        FTS *fts = fts_open(dir, FTS_LOGICAL, NULL);
+        if (fts == NULL)
+            return ASCC_L2_FILE;
+
+        FTSENT *e = fts_read(fts);
+
+        int status = ASCC_L2_FILE;
+
+        CDFid cdf = NULL;
+        CDFstatus cdfStatus = 0;
+        long numRecs = 0;
+        CDFdata data = NULL;
+        float *pointer = NULL;
+        uint16_t *pointeru16 = NULL;
+
+        while (e)
+        {
+            if ((strncmp(e->fts_name, "themis_skymap_", 14) == 0) && (strncmp(e->fts_name + 14, state->site, 4) == 0) && strncmp(e->fts_name + e->fts_namelen - 4, ".sav", 4) == 0)
+            {
+                // Likely a skymap file
+                state->skymapfilename = strdup(e->fts_path);
+                break;
+            }
+            e = fts_read(fts);
+        }
+        fts_close(fts);
+    }
+
+    if (state->skymapfilename == NULL)
+        return ASCC_SKYMAP_FILE;
+
+    status = loadSkymapFromFile(state);
+
+    return status;
+}
+
+int loadSkymapFromFile(ProgramState *state)
+{
+    if (state == NULL)
+        return ASCC_ARGUMENTS;
+
+    VariableList variables = {0};
+    SaveInfo fileInfo = {0};
+
+    int status = ASCC_OK;
+
+    status = readSave(state->skymapfilename, &fileInfo, &variables);
+    if (status != READSAVE_OK)
+        return ASCC_SKYMAP_FILE;
+
+    Variable *var = NULL;
+    Variable *selectedVar = NULL;
+
+    float *pointer = NULL;
+    uint16_t *pointeru16 = NULL;
+    void *mem = NULL;
+
+    // Expecting 1 variable with format the same as "themis_skymap_rank_20130107-+_vXX.sav"
+    var = &variables.variableList[0];
+    state->siteLatitudeGeodetic  = *(float*)(variableData(&((Variable*)var->data)[0], "skymap.site_map_latitude")->data);
+    state->siteLongitudeGeodetic  = *(float*)(variableData(&((Variable*)var->data)[0], "skymap.site_map_longitude")->data);
+    state->siteAltitudeMetres  = *(float*)(variableData(&((Variable*)var->data)[0], "skymap.site_map_altitude")->data);
+
+    if (!isfinite(state->siteLatitudeGeodetic) || !isfinite(state->siteLongitudeGeodetic) || !isfinite(state->siteAltitudeMetres))
+        return ASCC_SKYMAP_FILE;
+
+    pointer = &state->l2CameraElevations[0][0];
+    mem = variableData(&((Variable*)var->data)[0], "skymap.full_elevation")->data;
+    memcpy(pointer, mem, IMAGE_COLUMNS * IMAGE_ROWS * sizeof(float));
+
+    pointer = &state->l2CameraAzimuths[0][0];
+    mem = variableData(&((Variable*)var->data)[0], "skymap.full_azimuth")->data;
+    memcpy(pointer, mem, IMAGE_COLUMNS * IMAGE_ROWS * sizeof(float));
+
+    pointeru16 = &state->sitePixelOffsets[0][0];
+    mem = variableData(&((Variable*)var->data)[0], "skymap.full_subtract")->data;
+    memcpy(pointeru16, mem, IMAGE_COLUMNS * IMAGE_ROWS * sizeof(uint16_t));
+
+    float tmp = 0.0;
+    uint16_t tmpu16 = 0;
+    // First rearrange the arrays to match L2 indexing: two flips
+    for (int c = 0; c < IMAGE_COLUMNS / 2; c++)
+    {
+        for (int r = 0; r < IMAGE_ROWS; r++)
+        {
+            tmp = state->l2CameraElevations[c][r];
+            state->l2CameraElevations[c][r] = state->l2CameraElevations[IMAGE_COLUMNS - 1 - c][r];
+            state->l2CameraElevations[IMAGE_COLUMNS - 1 - c][r] = tmp;
+
+            tmp = state->l2CameraAzimuths[c][r];
+            state->l2CameraAzimuths[c][r] = state->l2CameraAzimuths[IMAGE_COLUMNS - 1 - c][r];
+            state->l2CameraAzimuths[IMAGE_COLUMNS - 1 - c][r] = tmp;
+
+            tmpu16 = state->sitePixelOffsets[c][r];
+            state->sitePixelOffsets[c][r] = state->sitePixelOffsets[IMAGE_COLUMNS - 1 - c][r];
+            state->sitePixelOffsets[IMAGE_COLUMNS - 1 - c][r] = tmpu16;
+        }
+    }
+    for (int c = 0; c < IMAGE_COLUMNS; c++)
+    {
+        for (int r = 0; r < IMAGE_ROWS / 2; r++)
+        {
+            tmp = state->l2CameraElevations[c][r];
+            state->l2CameraElevations[c][r] = state->l2CameraElevations[c][IMAGE_ROWS - 1 - r];
+            state->l2CameraElevations[c][IMAGE_ROWS - 1 - r] = tmp;
+
+            tmp = state->l2CameraAzimuths[c][r];
+            state->l2CameraAzimuths[c][r] = state->l2CameraAzimuths[c][IMAGE_ROWS - 1 - r];
+            state->l2CameraAzimuths[c][IMAGE_ROWS - 1 - r] = tmp;
+
+            tmpu16 = state->sitePixelOffsets[c][r];
+            state->sitePixelOffsets[c][r] = state->sitePixelOffsets[c][IMAGE_ROWS - 1 - r];
+            state->sitePixelOffsets[c][IMAGE_ROWS - 1 - r] = tmpu16;
+        }
+    }
+
+    for (int c = 0; c < IMAGE_COLUMNS; c++)
+    {
+        for (int r = 0; r < IMAGE_ROWS; r++)
+        {
+            // Calculate AzEl Cartesian coordinates
+            if (isfinite(state->l2CameraAzimuths[c][r]) && isfinite(state->l2CameraElevations[c][r]))
+            {
+                state->pixelX[c][r] = cos((90.0 - state->l2CameraAzimuths[c][r])*M_PI/180.0) * cos(state->l2CameraElevations[c][r]*M_PI/180.0);
+                state->pixelY[c][r] = sin((90.0 - state->l2CameraAzimuths[c][r])*M_PI/180.0) * cos(state->l2CameraElevations[c][r]*M_PI/180.0);
+                state->pixelZ[c][r] = sin(state->l2CameraElevations[c][r]*M_PI/180.0);
+            }
+            else
+            {
+                state->pixelX[c][r] = NAN;
+                state->pixelY[c][r] = NAN;
+                state->pixelZ[c][r] = NAN;
+            }
+        }
+    }
+
+    return ASCC_OK;
+
 }

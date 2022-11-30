@@ -13,5 +13,8 @@ int loadStars(ProgramState *state);
 int readBSC5Int32(FILE *f, int32_t *value);
 void reverseBytes(uint8_t *word, int nBytes);
 
+int loadSkymap(ProgramState *state);
+int loadSkymapFromFile(ProgramState *state);
+
 
 #endif // _IMPORT_H

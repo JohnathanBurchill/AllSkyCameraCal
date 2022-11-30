@@ -54,6 +54,19 @@ ldconfig
 USER science
 RUN cd /home/science && \
 rm -rf cdf38_1-dist*
+RUN cd /home/science && \ 
+git clone https://github.com/JohnathanBurchill/ReadSave && \
+cd ReadSave && \
+mkdir build && \
+cd build && \
+cmake .. && \
+make
+USER root
+RUN cd /home/science/ReadSave/build && \
+cp libredsafe.a /usr/local/lib && \
+ldconfig && \
+cp ../include/readsave.h /usr/local/include/.
+USER science
 VOLUME ["/home/science/src"]
 ENTRYPOINT ["/bin/bash"]
 

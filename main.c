@@ -19,6 +19,7 @@ int main(int argc, char **argv)
     state.starMaxJitterPixels = STAR_MAX_PIXEL_JITTER;
     state.l1dir = ".";
     state.l2dir = ".";
+    state.skymapdir = ".";
     state.stardir = ".";
 
     int nOptions = 0;
@@ -32,7 +33,7 @@ int main(int argc, char **argv)
         }
         else if (strcmp(argv[i], "--about") == 0)
         {
-            about();
+            aboutASCC();
             return EXIT_SUCCESS;
         }
         else if (strncmp(argv[i], "--number-of-calibration-stars=", 30) == 0)
@@ -77,6 +78,22 @@ int main(int argc, char **argv)
         {
             nOptions++;
             state.l2dir = argv[i]+8;
+        }
+        else if (strncmp(argv[i], "--skymapdir=", 12) == 0)
+        {
+            nOptions++;
+            state.skymapdir = argv[i]+12;
+        }
+        else if (strncmp(argv[i], "--skymap=", 9) == 0)
+        {
+            nOptions++;
+            state.skymap = true;
+            state.skymapfilename = argv[i]+9;
+        }
+        else if (strcmp(argv[i], "--skymap") == 0)
+        {
+            nOptions++;
+            state.skymap = true;
         }
         else if (strncmp(argv[i], "--stardir=", 10) == 0)
         {
@@ -133,19 +150,36 @@ int main(int argc, char **argv)
         return EXIT_FAILURE;
     }
 
-    if (access(state.l2dir, F_OK) != 0)
+    if (!state.skymap && (access(state.l2dir, F_OK) != 0))
     {
         fprintf(stderr, "Level 2 directory %s not found.\n", state.l2dir);
         return EXIT_FAILURE;
     }
 
+    if (state.skymap)
+    {
+        if (state.skymapfilename == NULL && access(state.skymapdir, F_OK) != 0)
+        {
+            fprintf(stderr, "Skymap directory %s not found.\n", state.skymapdir);
+            return EXIT_FAILURE;
+        }
+        else if (access(state.skymapfilename, F_OK) != 0)
+        {
+            fprintf(stderr, "Skymap file %s not found.\n", state.skymapfilename);
+            return EXIT_FAILURE;
+        }
+    }
+
     int status = ASCC_OK;
 
     // Read in pixel elevations and azimuths and site geodetic position from L2 file.
-    status = loadThemisLevel2(&state);
+    if (state.skymap)
+        status = loadSkymap(&state);
+    else
+        status = loadThemisLevel2(&state);
     if (status != ASCC_OK)
     {
-        fprintf(stderr, "Could not load THEMIS Level 2 calibration file.\n");
+        fprintf(stderr, "Could not load calibration file.\n");
         return status;
     }
 
@@ -248,15 +282,18 @@ cleanup:
 
 void usage(char *name)
 {
-    printf("Usage: %s <site> <firstCalDate> <lastCalDate> [--l1dir=<l1dir>] [--l2dir=<l2dir>] [--stardir=<stardir>] [--number-of-calibration-stars=N] [--star-search-box-width=<widthInPixels>] [--star-max-jitter-pixels=<value>] [--help] [--usage]\n", name);
+    printf("Usage: %s <site> <firstCalDate> <lastCalDate> [--l1dir=<dir>] [--l2dir=<dir>] [--skymap=<file>] [--use-skymap] [--skymapdir=<dir>] [--stardir=<star>] [--number-of-calibration-stars=N] [--star-search-box-width=<widthInPixels>] [--star-max-jitter-pixels=<value>] [--help] [--usage]\n", name);
     printf(" estimates new THEMIS ASI elevation and azimuth map for <site> using suitable ASI images from <firstCalDate> to <lastCalDate>.\n");
     printf(" Dates have the form yyyy-mm-ddTHH:MM:SS.sss interpreted as universal times.\n");
     printf(" <l1dir> is the path to the directory containing the THEMIS level 1 ASI files.\n");
     printf(" <l2dir> is the path to the directory containing the THEMIS l2 ASI files.\n");
     printf(" Options:\n");
-    printf("%20s : sets the directory containing THEMIS level 1 (ASI) files. Defaults to \".\". Only one version of each L1 file can be in this directory.\n", "--l1dir=<l1dir>");
-    printf("%20s : sets the directory containing THEMIS level 2 (calibration) files. Defaults to \".\".\n", "--l2dir=<l2dir>");
-    printf("%20s : sets the directory containing the Yale Bright Star Catalog file (BSC5ra). Defaults to \".\".\n", "--stardir=<stardir>");
+    printf("%20s : sets the directory containing THEMIS level 1 (ASI) files. Defaults to \".\". Only one version of each L1 file can be in this directory.\n", "--l1dir=<dir>");
+    printf("%20s : sets the directory containing THEMIS level 2 (calibration) files. Defaults to \".\".\n", "--l2dir=<dir>");
+    printf("%20s : sets the directory containing the Yale Bright Star Catalog file (BSC5ra). Defaults to \".\".\n", "--stardir=<dir>");
+    printf("%20s : use the IDL skymap file instead of the themis L2 calibration file.\n", "--skymap");
+    printf("%20s : sets the directory containing the IDL skymap files. Defaults to \".\".\n", "--skymapdir=<dir>");
+    printf("%20s : use a specific IDK skymap file.\n", "--skymap=<file>");
     printf("%20s : sets the number of calibration stars. Defaults to %d.\n", "--number-of-calibration-stars=N", N_CALIBRATION_STARS);
     printf("%20s : sets the width of the calibration star search box. Defaults to %d.\n", "--star-search-box-width=N", STAR_SEARCH_BOX_WIDTH);
     printf("%20s : sets the maximum change in star image position from previous image to be included in error estimation. Defaults to %.1f.\n", "--star-max-jitter-pixels=<value>", STAR_MAX_PIXEL_JITTER);
@@ -266,7 +303,7 @@ void usage(char *name)
     return;
 }
 
-void about(void)
+void aboutASCC(void)
 {
 
     printf("allskycameracal. Copyright (C) 2022 Johnathan K. Burchill.\n");

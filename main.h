@@ -29,7 +29,8 @@ enum ASCC_STATUS
     ASCC_MEM = 4,
     ASCC_ARGUMENTS = 5,
     ASCC_CDF_READ = 6,
-    ASCC_STAR_FILE = 7
+    ASCC_STAR_FILE = 7,
+    ASCC_SKYMAP_FILE = 8
 };
 
 typedef struct ProgramState
@@ -55,11 +56,14 @@ typedef struct ProgramState
     int32_t nMagnitudes;
     int32_t bytesPerStarEntry;
 
-
     char *l1dir;
     char *l2filename;
 
     char *l2dir;
+
+    char *skymapdir;
+    char *skymapfilename;
+    bool skymap;
     float siteLatitudeGeodetic;
     float siteLongitudeGeodetic;
     float siteAltitudeMetres;
@@ -78,6 +82,6 @@ typedef struct ProgramState
 } ProgramState;
 
 void usage(char *name);
-void about(void);
+void aboutASCC(void);
 
 #endif // _MAIN_H
