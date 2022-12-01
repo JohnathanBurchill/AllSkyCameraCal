@@ -13,6 +13,9 @@
 
 #include <gsl/gsl_statistics_float.h>
 #include <gsl/gsl_sort_float.h>
+#include <gsl/gsl_matrix.h>
+#include <gsl/gsl_blas.h>
+#include <gsl/gsl_linalg.h>
 
 
 int sortL1Listing(const FTSENT **first, const FTSENT **second)
@@ -151,7 +154,10 @@ int analyzeL1FileImages(ProgramState *state, char *l1file)
 
     float *azVals = calloc(state->nCalibrationStars, sizeof *azVals);
     float *elVals = calloc(state->nCalibrationStars, sizeof *elVals);
-    if (azVals == NULL || elVals == NULL)
+    double *predictedAzElXYZ = calloc(state->nCalibrationStars, 3 * (sizeof *predictedAzElXYZ));
+    double *measuredAzElXYZ = calloc(state->nCalibrationStars, 3 * (sizeof *measuredAzElXYZ));
+    // TODO handle freeing memory better
+    if (azVals == NULL || elVals == NULL || predictedAzElXYZ == NULL || measuredAzElXYZ == NULL)
         return ASCC_MEM;
 
     char cdfVarName[CDF_VAR_NAME_LEN + 1] = {0};
@@ -205,6 +211,30 @@ int analyzeL1FileImages(ProgramState *state, char *l1file)
 
     // printf("El minmax: %.2f %.2f\n", state->minElevation, state->maxElevation);
     // printf("Az minmax: %.2f %.2f\n", state->minAzimuth, state->maxAzimuth);
+
+    // For rotation matrix estimation
+    double cArr[9] = {0.0};
+    double vArr[9] = {0.0};
+    double v1Arr[9] = {0.0};
+    double sArr[3] = {0.0};
+    double workArr[3] = {0.0};
+    double dcmArr[9] = {0.0};
+    double cDetSignArr[9] = {0.0};
+    double rotationVectorArr[3] = {0.0};
+    double rotationVectorLength = 0.0;
+    double rotationAngle = 0.0;
+
+    gsl_matrix_view c = gsl_matrix_view_array(cArr, 3, 3);
+    gsl_matrix_view v = gsl_matrix_view_array(vArr, 3, 3);
+    gsl_matrix_view v1 = gsl_matrix_view_array(v1Arr, 3, 3);
+    gsl_vector_view s = gsl_vector_view_array(sArr, 3);
+    gsl_vector_view work = gsl_vector_view_array(workArr, 3);
+    gsl_matrix_view dcm = gsl_matrix_view_array(dcmArr, 3, 3);
+    gsl_matrix_view cDetSign = gsl_matrix_view_array(cDetSignArr, 3, 3);
+    gsl_vector_view rotationVector = gsl_vector_view_array(rotationVectorArr, 3);
+
+    float statAz = 0.0;
+    float statEl = 0.0;
 
     for (long ind = 0; ind < nFileImages; ind++)
     {
@@ -360,18 +390,92 @@ int analyzeL1FileImages(ProgramState *state, char *l1file)
                     // For now, take magnitude of error only for elevations
                     azVals[statCounter] = cal->deltaAz;
                     elVals[statCounter] = fabsf(cal->deltaEl);
+
+                    // For rotation matrix estimation
+                    // Using double type to be able to use GSL SVD
+                    predictedAzElXYZ[statCounter*3] = (double)cal->predictedAzElX;
+                    predictedAzElXYZ[statCounter*3 + 1] = (double)cal->predictedAzElY;
+                    predictedAzElXYZ[statCounter*3 + 2] = (double)cal->predictedAzElZ;
+
+                    measuredAzElXYZ[statCounter*3] = (double)cal->measuredAzElX;
+                    measuredAzElXYZ[statCounter*3 + 1] = (double)cal->measuredAzElY;
+                    measuredAzElXYZ[statCounter*3 + 2] = (double)cal->measuredAzElZ;
+
                     statCounter++;
                 }
                 cal->previousImageMomentColumn = cal->imageMomentColumn;
                 cal->previousImageMomentRow = cal->imageMomentRow;
             }
-
-            float statAz = gsl_stats_float_median(azVals, 1, statCounter);
-            float statEl = gsl_stats_float_median(elVals, 1, statCounter);
+            statAz = gsl_stats_float_median(azVals, 1, statCounter);
+            statEl = gsl_stats_float_median(elVals, 1, statCounter);
             // gsl_sort_float(azVals, 1, statCounter);
             // float statAz = gsl_stats_float_trmean_from_sorted_data(0.25, azVals, 1, statCounter);
             // gsl_sort_float(elVals, 1, statCounter);
             // float statEl = gsl_stats_float_trmean_from_sorted_data(0.25, elVals, 1, statCounter);
+
+            // Calculate rotation matrix for this image
+            // statCounter x 3 matrices
+            gsl_matrix_view a = gsl_matrix_view_array(predictedAzElXYZ, statCounter, 3);
+            gsl_matrix_view b = gsl_matrix_view_array(measuredAzElXYZ, statCounter, 3);
+            // These are Nx3 matrices. Using the method of https://cnx.org/contents/HV-RsdwL@23/Molecular-Distance-Measures, the matrices should be 3xN.
+            // calculate C = X^T * Y
+            int gslStatus = gsl_blas_dgemm(CblasTrans, CblasNoTrans, 1.0, &a.matrix, &b.matrix, 0, &c.matrix);
+            if (gslStatus != GSL_SUCCESS)
+                goto cleanup;
+
+            gsl_matrix *d = &c.matrix;
+            // From wikipedia article for determinant
+            double da = gsl_matrix_get(d, 0, 0);
+            double db = gsl_matrix_get(d, 0, 1);
+            double dc = gsl_matrix_get(d, 0, 2);
+            double dd = gsl_matrix_get(d, 1, 0);
+            double de = gsl_matrix_get(d, 1, 1);
+            double df = gsl_matrix_get(d, 1, 2);
+            double dg = gsl_matrix_get(d, 2, 0);
+            double dh = gsl_matrix_get(d, 2, 1);
+            double di = gsl_matrix_get(d, 2, 2);
+            double cDet = da*de*di + db*df*dg + dc*dd*dh - dc*de*dg - db*dd*di - da*df*dh;
+            gsl_matrix_set(&cDetSign.matrix, 0, 0, 1.0);
+            gsl_matrix_set(&cDetSign.matrix, 1, 1, 1.0);
+            gsl_matrix_set(&cDetSign.matrix, 2, 2, cDet >= 0.0 ? 1.0 : -1.0);
+
+            gslStatus = gsl_linalg_SV_decomp(&c.matrix, &v.matrix, &s.vector, &work.vector);
+            if (gslStatus != GSL_SUCCESS)
+                goto cleanup;
+
+            // C now contains W for the SVD of C as W S V^T
+            // The DCM is then
+            gslStatus = gsl_blas_dgemm(CblasNoTrans, CblasTrans, 1.0, &cDetSign.matrix, &v.matrix, 0, &v1.matrix);
+            if (gslStatus != GSL_SUCCESS)
+                goto cleanup;
+
+            gslStatus = gsl_blas_dgemm(CblasNoTrans, CblasNoTrans, 1.0, &c.matrix, &v1.matrix, 0, &dcm.matrix);
+            if (gslStatus != GSL_SUCCESS)
+                goto cleanup;
+
+            // Probably safe to assume that the DCM is symmetric. 
+            // TODO check this
+
+            // from https://en.wikipedia.org/wiki/Rotation_matrix#Conversion_from_rotation_matrix_to_axis–angle
+            gsl_vector_set(&rotationVector.vector, 0, gsl_matrix_get(&dcm.matrix, 2, 1) - gsl_matrix_get(&dcm.matrix, 1, 2));
+            gsl_vector_set(&rotationVector.vector, 1, gsl_matrix_get(&dcm.matrix, 0, 2) - gsl_matrix_get(&dcm.matrix, 2, 0));
+            gsl_vector_set(&rotationVector.vector, 2, gsl_matrix_get(&dcm.matrix, 1, 0) - gsl_matrix_get(&dcm.matrix, 0, 1));
+            double *r = rotationVectorArr;
+            rotationVectorLength = sqrt(r[0] * r[0] + r[1] * r[1] + r[2] * r[2]);
+            rotationAngle = asin(rotationVectorLength / 2.0) / M_PI * 180.0;
+            if (rotationVectorLength > 0.0)
+            {
+                r[0] /= rotationVectorLength;
+                r[1] /= rotationVectorLength;
+                r[2] /= rotationVectorLength;
+            }
+            else
+            {
+                r[0] = 1.0;
+                r[1] = 0.0;
+                r[2] = 0.0;
+            }
+
 
             for (int i = 0; i < nCalStars; i++)
             {
@@ -382,11 +486,11 @@ int analyzeL1FileImages(ProgramState *state, char *l1file)
                     // and store all info in a CDF
                     // Looks like the AZ / EL map needs to be rotated and translated,
                     // not just translated.
-                    printf("%lf %ld %ld %.3f %.3f %.3f %.4f %.4f %.4f %.4f %.4f %.4f %.4f %.4f\n", imageTime, cal->predictedImageColumn, cal->predictedImageRow, cal->imageMomentColumn, cal->imageMomentRow, cal->magnitude, cal->predictedAz, cal->predictedEl, cal->measuredAz, cal->measuredEl, cal->deltaAz / M_PI * 180.0, cal->deltaEl / M_PI * 180.0, statAz / M_PI * 180.0, statEl / M_PI * 180.0);
+                    printf("%lf %ld %ld %.3f %.3f %.3f %.4f %.4f %.4f %.4f %.4f %.4f %.4f %.4f %.9lf %.9lf %.9lf %.9lf %.9lf %.9lf %.9lf %.9lf %.9lf %.6lf %.6lf %.6lf %.6lf\n", imageTime, cal->predictedImageColumn, cal->predictedImageRow, cal->imageMomentColumn, cal->imageMomentRow, cal->magnitude, cal->predictedAz, cal->predictedEl, cal->measuredAz, cal->measuredEl, cal->deltaAz / M_PI * 180.0, cal->deltaEl / M_PI * 180.0, statAz / M_PI * 180.0, statEl / M_PI * 180.0, dcmArr[0], dcmArr[1], dcmArr[2], dcmArr[3], dcmArr[4], dcmArr[5], dcmArr[6], dcmArr[7], dcmArr[8], rotationVectorArr[0], rotationVectorArr[1], rotationVectorArr[2], rotationAngle);
                 }
                 else
                 {
-                    printf("%lf %ld %ld %.3f %.3f %.3f %.4f %.4f %.4f %.4f %.4f %.4f %.4f %.4f\n", imageTime, cal->predictedImageColumn, cal->predictedImageRow, NAN, NAN, cal->magnitude, cal->predictedAz, cal->predictedEl, NAN, NAN, NAN, NAN, NAN, NAN);
+                    printf("%lf %ld %ld %.3f %.3f %.3f %.4f %.4f %.4f %.4f %.4f %.4f %.4f %.4f %.9lf %.9lf %.9lf %.9lf %.9lf %.9lf %.9lf %.9lf %.9lf\n", imageTime, cal->predictedImageColumn, cal->predictedImageRow, NAN, NAN, cal->magnitude, cal->predictedAz, cal->predictedEl, NAN, NAN, NAN, NAN, NAN, NAN, NAN, NAN, NAN, NAN, NAN, NAN, NAN, NAN, NAN);
                 }
             }
         }
@@ -400,6 +504,18 @@ cleanup:
 
     if (calStars != NULL)
         free(calStars);
+
+    if (azVals != NULL)
+        free(azVals);
+
+    if (elVals != NULL)
+        free(elVals);
+
+    if (predictedAzElXYZ != NULL)
+        free(predictedAzElXYZ);
+
+    if (measuredAzElXYZ != NULL)
+        free(measuredAzElXYZ);
 
     return status;
 }
