@@ -453,7 +453,7 @@ int analyzeL1FileImages(ProgramState *state, char *l1file)
             if (gslStatus != GSL_SUCCESS)
                 goto cleanup;
 
-            // Probably safe to assume that the DCM is symmetric. 
+            // Probably safe to assume that the DCM is not symmetric. 
             // TODO check this
 
             // from https://en.wikipedia.org/wiki/Rotation_matrix#Conversion_from_rotation_matrix_to_axis–angle
@@ -475,7 +475,6 @@ int analyzeL1FileImages(ProgramState *state, char *l1file)
                 r[1] = 0.0;
                 r[2] = 0.0;
             }
-
 
             for (int i = 0; i < nCalStars; i++)
             {
