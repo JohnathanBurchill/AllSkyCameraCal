@@ -174,8 +174,6 @@ int main(int argc, char **argv)
         return EXIT_FAILURE;
     }
 
-    printf("Estimating THEMIS level 2 optical calibration for site %s using level 1 imagery between %s UT and %s UT\n", state.site, state.firstCalDateString, state.lastCalDateString);
-
     if (access(state.l1dir, F_OK) != 0)
     {
         fprintf(stderr, "Level 1 directory %s not found.\n", state.l1dir);
@@ -214,6 +212,8 @@ int main(int argc, char **argv)
         fprintf(stderr, "Could not load calibration file.\n");
         return status;
     }
+
+    printf("Estimating THEMIS %s ASI optical calibration using %s %s for level 1 imagery between %s UT and %s UT\n", state.site, state.skymap ? "SKYMAP" : "L2", state.skymap ? state.skymapfilename : state.l2filename, state.firstCalDateString, state.lastCalDateString);
 
     // Read in the star catalog (BCS5) sorted by right ascension (BCS5ra)
     status = loadStars(&state);
