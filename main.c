@@ -22,6 +22,7 @@
 
 #include "import.h"
 #include "analysis.h"
+#include "export.h"
 
 #include <stdlib.h>
 #include <stdio.h>
@@ -41,6 +42,7 @@ int main(int argc, char **argv)
     state.l2dir = ".";
     state.skymapdir = ".";
     state.stardir = ".";
+    state.exportdir = ".";
 
     int nOptions = 0;
 
@@ -119,6 +121,16 @@ int main(int argc, char **argv)
         {
             nOptions++;
             state.stardir = argv[i]+10;
+        }
+        else if (strcmp(argv[i], "--print-star-info") == 0)
+        {
+            nOptions++;
+            state.printStarInfo = true;
+        }
+        else if (strncmp(argv[i], "--exportdir=", 12) == 0)
+        {
+            nOptions++;
+            state.exportdir = argv[i]+12;
         }
         else if (strncmp(argv[i], "--", 2) == 0)
         {
@@ -290,11 +302,22 @@ int main(int argc, char **argv)
     // Loop over all L1 files between the requested calibration time.
     status = analyzeImagery(&state);
 
+    // Export error DCMs to CDF file
+    exportCdf(&state);
+
 cleanup:
 
     // freeProgramState(&state);
     if (state.starData != NULL)
         free(state.starData);
+    if (state.imageTimes != NULL)
+        free(state.imageTimes);
+    if (state.pointingErrorDcms != NULL)
+        free(state.pointingErrorDcms);
+    if (state.rotationVectors != NULL)
+        free(state.rotationVectors);
+    if (state.rotationAngles != NULL)
+        free(state.rotationAngles);
 
     return status;
 }
@@ -302,7 +325,7 @@ cleanup:
 
 void usage(char *name)
 {
-    printf("Usage: %s <site> <firstCalDate> <lastCalDate> [--l1dir=<dir>] [--l2dir=<dir>] [--skymap=<file>] [--use-skymap] [--skymapdir=<dir>] [--stardir=<star>] [--number-of-calibration-stars=N] [--star-search-box-width=<widthInPixels>] [--star-max-jitter-pixels=<value>] [--help] [--usage]\n", name);
+    printf("Usage: %s <site> <firstCalDate> <lastCalDate> [--l1dir=<dir>] [--l2dir=<dir>] [--skymap=<file>] [--use-skymap] [--skymapdir=<dir>] [--stardir=<star>] [--number-of-calibration-stars=N] [--star-search-box-width=<widthInPixels>] [--star-max-jitter-pixels=<value>] [--exportdir=<dir>] [--print-star-info] [--help] [--usage]\n", name);
     printf(" estimates new THEMIS ASI elevation and azimuth map for <site> using suitable ASI images from <firstCalDate> to <lastCalDate>.\n");
     printf(" Dates have the form yyyy-mm-ddTHH:MM:SS.sss interpreted as universal times.\n");
     printf(" <l1dir> is the path to the directory containing the THEMIS level 1 ASI files.\n");
@@ -317,6 +340,8 @@ void usage(char *name)
     printf("%20s : sets the number of calibration stars. Defaults to %d.\n", "--number-of-calibration-stars=N", N_CALIBRATION_STARS);
     printf("%20s : sets the width of the calibration star search box. Defaults to %d.\n", "--star-search-box-width=N", STAR_SEARCH_BOX_WIDTH);
     printf("%20s : sets the maximum change in star image position from previous image to be included in error estimation. Defaults to %.1f.\n", "--star-max-jitter-pixels=<value>", STAR_MAX_PIXEL_JITTER);
+    printf("%20s : prints calibration star information for each image.\n", "--print-star-info");
+    printf("%20s : sets the directory for the exported calibration CDF.\n", "--exportdir=<dir>");
     printf("%20s : prints this message.\n", "--help");
     printf("%20s : prints author name and license.\n", "--about");
 

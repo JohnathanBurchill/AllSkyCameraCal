@@ -26,6 +26,8 @@
 #include <stdlib.h>
 #include <stdint.h>
 
+#define EXPORT_CDF_VERSION_STRING "0001"
+
 #define N_CALIBRATION_STARS 50
 #define MIN_N_CALIBRATION_STARS_PER_IMAGE 1
 #define IMAGE_ROWS 256
@@ -50,7 +52,9 @@ enum ASCC_STATUS
     ASCC_ARGUMENTS = 5,
     ASCC_CDF_READ = 6,
     ASCC_STAR_FILE = 7,
-    ASCC_SKYMAP_FILE = 8
+    ASCC_SKYMAP_FILE = 8,
+    ASCC_CDF_EXPORT_NO_DATA = 9,
+    ASCC_CDF_WRITE = 10
 };
 
 typedef struct ProgramState
@@ -96,8 +100,15 @@ typedef struct ProgramState
     float pixelY[IMAGE_COLUMNS][IMAGE_ROWS];
     float pixelZ[IMAGE_COLUMNS][IMAGE_ROWS];
 
-    float newCameraElevations[IMAGE_COLUMNS][IMAGE_ROWS];
-    float newCameraAzimuths[IMAGE_COLUMNS][IMAGE_ROWS];
+
+    char *exportdir;
+    size_t nImages;
+    double *imageTimes;
+    float *pointingErrorDcms;
+    float *rotationVectors;
+    float *rotationAngles;
+
+    bool printStarInfo;
 
 } ProgramState;
 

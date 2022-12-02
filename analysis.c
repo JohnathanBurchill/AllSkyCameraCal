@@ -194,6 +194,30 @@ int analyzeL1FileImages(ProgramState *state, char *l1file)
     nFileImages = maxFileRecord + 1;
     // printf("file records: %ld\n", nFileImages);
 
+
+    size_t startImage = state->nImages;
+    long imageCounter = startImage;
+    state->nImages += nFileImages;
+    void *mem = realloc(state->imageTimes, sizeof(double) * state->nImages);
+    if (mem == NULL || (state->imageTimes != NULL && mem != state->imageTimes))
+        goto cleanup;
+    state->imageTimes = mem;
+
+    mem = realloc(state->pointingErrorDcms, 9 * sizeof(float) * state->nImages);
+    if (mem == NULL || (state->pointingErrorDcms != NULL && mem != state->pointingErrorDcms))
+        goto cleanup;
+    state->pointingErrorDcms = mem;
+
+    mem = realloc(state->rotationVectors, 3 * sizeof(float) * state->nImages);
+    if (mem == NULL || (state->rotationVectors != NULL && mem != state->rotationVectors))
+        goto cleanup;
+    state->rotationVectors = mem;
+
+    mem = realloc(state->rotationAngles, sizeof(float) * state->nImages);
+    if (mem == NULL || (state->rotationAngles != NULL && mem != state->rotationAngles))
+        goto cleanup;
+    state->rotationAngles = mem;
+
     double imageTime = 0.0;
     char timeString[EPOCH4_STRING_LEN+1];
 
@@ -266,7 +290,8 @@ int analyzeL1FileImages(ProgramState *state, char *l1file)
             continue;
         if (imageTime < state->firstCalTime || imageTime > state->lastCalTime)
             continue;
-
+        // printf("%ld: %lf\n", startImage+imageCounter, imageTime);
+        state->imageTimes[startImage + imageCounter] = imageTime;
         encodeEPOCH4(imageTime, timeString);
         // printf("Analyzing image at %s\n", timeString);
 
@@ -402,7 +427,7 @@ int analyzeL1FileImages(ProgramState *state, char *l1file)
             for (int i = 0; i < nCalStars; i++)
             {
                 cal = &calStars[i];
-                if (cal->includeInCalibration && (ind == 0 || cal->newStarAtThisIndex || (fabsf(cal->imageMomentColumn - cal->previousImageMomentColumn) < STAR_MAX_PIXEL_JITTER && fabsf(cal->imageMomentRow - cal->previousImageMomentRow) < STAR_MAX_PIXEL_JITTER)))
+                if (cal->includeInCalibration && (imageCounter == startImage || cal->newStarAtThisIndex || (fabsf(cal->imageMomentColumn - cal->previousImageMomentColumn) < STAR_MAX_PIXEL_JITTER && fabsf(cal->imageMomentRow - cal->previousImageMomentRow) < STAR_MAX_PIXEL_JITTER)))
                 {
                     // A rotation away from zenith (in declination)
                     // will be positive on one side and negative on the other
@@ -495,8 +520,14 @@ int analyzeL1FileImages(ProgramState *state, char *l1file)
                 r[1] = 0.0;
                 r[2] = 0.0;
             }
+            // Store fit for later export
+            for (int m = 0; m < 9; m++)
+                state->pointingErrorDcms[imageCounter * 9 + m] = dcmArr[m];
+            for (int m = 0; m < 3; m++)
+                state->rotationVectors[imageCounter* 3 + m] = rotationVectorArr[m];
+            state->rotationAngles[imageCounter] = rotationAngle;
 
-            for (int i = 0; i < nCalStars; i++)
+            for (int i = 0; i < nCalStars && state->printStarInfo; i++)
             {
                 cal = &calStars[i];
                 if (cal->includeInCalibration)
@@ -513,9 +544,38 @@ int analyzeL1FileImages(ProgramState *state, char *l1file)
                 }
             }
         }
-
-
+        else
+        {
+            for (int m = 0; m < 9; m++)
+                state->pointingErrorDcms[imageCounter * 9 + m] = NAN;
+            for (int m = 0; m < 3; m++)
+                state->rotationVectors[imageCounter * 3 + m] = NAN;
+            state->rotationAngles[imageCounter] = NAN;
+        }
+        imageCounter++;
     }
+    state->nImages = imageCounter;
+    // Resize to actual number of images analyzed
+    mem = realloc(state->imageTimes, sizeof(double) * state->nImages);
+    if (mem != state->imageTimes)
+        goto cleanup;
+    state->imageTimes = mem;
+
+    mem = realloc(state->pointingErrorDcms, 9 * sizeof(float) * state->nImages);
+    if (mem != state->pointingErrorDcms)
+        goto cleanup;
+    state->pointingErrorDcms = mem;
+
+    mem = realloc(state->rotationVectors, 3 * sizeof(float) * state->nImages);
+    if (mem != state->rotationVectors)
+        goto cleanup;
+    state->rotationVectors = mem;
+
+    mem = realloc(state->rotationAngles, sizeof(float) * state->nImages);
+    if (mem != state->rotationAngles)
+        goto cleanup;
+    state->rotationAngles = mem;
+
 
 cleanup:
     if (cdf != NULL)
