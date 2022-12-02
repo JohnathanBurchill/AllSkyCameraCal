@@ -199,22 +199,22 @@ int analyzeL1FileImages(ProgramState *state, char *l1file)
     long imageCounter = startImage;
     state->nImages += nFileImages;
     void *mem = realloc(state->imageTimes, sizeof(double) * state->nImages);
-    if (mem == NULL || (state->imageTimes != NULL && mem != state->imageTimes))
+    if (mem == NULL)
         goto cleanup;
     state->imageTimes = mem;
 
     mem = realloc(state->pointingErrorDcms, 9 * sizeof(float) * state->nImages);
-    if (mem == NULL || (state->pointingErrorDcms != NULL && mem != state->pointingErrorDcms))
+    if (mem == NULL)
         goto cleanup;
     state->pointingErrorDcms = mem;
 
     mem = realloc(state->rotationVectors, 3 * sizeof(float) * state->nImages);
-    if (mem == NULL || (state->rotationVectors != NULL && mem != state->rotationVectors))
+    if (mem == NULL)
         goto cleanup;
     state->rotationVectors = mem;
 
     mem = realloc(state->rotationAngles, sizeof(float) * state->nImages);
-    if (mem == NULL || (state->rotationAngles != NULL && mem != state->rotationAngles))
+    if (mem == NULL)
         goto cleanup;
     state->rotationAngles = mem;
 
