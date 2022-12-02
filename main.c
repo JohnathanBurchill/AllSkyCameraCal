@@ -359,6 +359,7 @@ void usage(char *name)
     printf("%20s : sets the width of the calibration star search box. Defaults to %d.\n", "--star-search-box-width=N", STAR_SEARCH_BOX_WIDTH);
     printf("%20s : sets the maximum change in star image position from previous image to be included in error estimation. Defaults to %.1f.\n", "--star-max-jitter-pixels=<value>", STAR_MAX_PIXEL_JITTER);
     printf("%20s : prints calibration star information for each image.\n", "--print-star-info");
+    printf("%20s : show image processing progress.\n", "--show-progress");
     printf("%20s : sets the directory for the exported calibration CDF.\n", "--exportdir=<dir>");
     printf("%20s : prints this message.\n", "--help");
     printf("%20s : prints author name and license.\n", "--about");
