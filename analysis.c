@@ -567,6 +567,23 @@ int analyzeL1FileImages(ProgramState *state, char *l1file)
         }
         imageCounter++;
     }
+    if (imageCounter > startImage)
+    {
+        state->nl1filenames++;
+        mem = realloc(state->l1filenames, state->nl1filenames * sizeof(char*));
+        if (mem == NULL)
+        {
+            status = ASCC_MEM;
+            goto cleanup;
+        }
+        state->l1filenames = mem;
+        state->l1filenames[state->nl1filenames - 1] = strdup(l1file);
+        if (state->l1filenames[state->nl1filenames - 1] == NULL)
+        {
+            status = ASCC_MEM;
+            goto cleanup;
+        }
+    }
     if (state->nImages != imageCounter)
     {
         state->nImages = imageCounter;

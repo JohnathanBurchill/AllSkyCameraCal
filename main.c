@@ -318,6 +318,13 @@ cleanup:
         free(state.rotationVectors);
     if (state.rotationAngles != NULL)
         free(state.rotationAngles);
+    for (int i = 0; i < state.nl1filenames; i++)
+    {
+        if (state.l1filenames[i] != NULL)
+            free(state.l1filenames[i]);
+    }
+    if (state.l1filenames != NULL)
+        free(state.l1filenames);
 
     return status;
 }

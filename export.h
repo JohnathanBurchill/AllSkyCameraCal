@@ -23,6 +23,10 @@
 
 #include "main.h"
 
+#include <cdf.h>
+
 int exportCdf(ProgramState *state);
+
+int addVariableAttributes(CDFid cdf, char *name, char *description, char *units);
 
 #endif // _EXPORT_H

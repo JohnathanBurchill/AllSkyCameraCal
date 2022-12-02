@@ -81,13 +81,16 @@ typedef struct ProgramState
     int32_t bytesPerStarEntry;
 
     char *l1dir;
-    char *l2filename;
+    char **l1filenames;
+    size_t nl1filenames;
 
     char *l2dir;
+    char *l2filename;
 
     char *skymapdir;
     char *skymapfilename;
     bool skymap;
+
     float siteLatitudeGeodetic;
     float siteLongitudeGeodetic;
     float siteAltitudeMetres;
