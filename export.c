@@ -20,6 +20,7 @@
 
 #include "export.h"
 #include "main.h"
+#include "util.h"
 
 #include <stdio.h>
 #include <string.h>
@@ -196,18 +197,29 @@ int exportCdf(ProgramState *state)
         goto cleanup;
     }
 
-    cdfstatus = CDFcreateAttr(cdf, "ProcessingDate", GLOBAL_SCOPE, &attrNum);
+    cdfstatus = CDFcreateAttr(cdf, "ProcessingStart", GLOBAL_SCOPE, &attrNum);
     if (cdfstatus != CDF_OK)
     {
         status = ASCC_CDF_WRITE;
         goto cleanup;
     }
-    double unixTime = (double) time(NULL);
-    double epochTime = 0;
-    UnixTimetoEPOCH(&unixTime, &epochTime, 1);
     char date[EPOCHx_STRING_MAX+1];
     char attrformat[EPOCHx_FORMAT_MAX+1] = "UTC=<year>-<mm.02>-<dom.02>T<hour>:<min>:<sec>";
-    encodeEPOCHx(epochTime, attrformat, date);
+    encodeEPOCHx(state->processingStartEpoch, attrformat, date);
+    cdfstatus = CDFputAttrgEntry(cdf, attrNum, entry, CDF_CHAR, strlen(date), date);
+    if (cdfstatus != CDF_OK)
+    {
+        status = ASCC_CDF_WRITE;
+        goto cleanup;
+    }
+
+    cdfstatus = CDFcreateAttr(cdf, "ProcessingStop", GLOBAL_SCOPE, &attrNum);
+    if (cdfstatus != CDF_OK)
+    {
+        status = ASCC_CDF_WRITE;
+        goto cleanup;
+    }
+    encodeEPOCHx(state->processingStopEpoch, attrformat, date);
     cdfstatus = CDFputAttrgEntry(cdf, attrNum, entry, CDF_CHAR, strlen(date), date);
     if (cdfstatus != CDF_OK)
     {

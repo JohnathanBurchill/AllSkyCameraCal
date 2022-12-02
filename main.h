@@ -113,6 +113,12 @@ typedef struct ProgramState
 
     bool printStarInfo;
 
+    bool showProgress;
+    size_t expectedNumberOfImages;
+
+    double processingStartEpoch;
+    double processingStopEpoch;
+
 } ProgramState;
 
 void usage(char *name);

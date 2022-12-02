@@ -39,4 +39,6 @@ int calculateMoments(ProgramState *state, uint16_t image[IMAGE_COLUMNS][IMAGE_RO
 float calculateMeanSignal(uint16_t image[IMAGE_COLUMNS][IMAGE_ROWS], int boxHalfWidth, float boxCenterColumn, float boxCenterRow);
 int calculatePositionOfMax(uint16_t image[IMAGE_COLUMNS][IMAGE_ROWS], int boxHalfWidth, float boxCenterColumn, float boxCenterRow, int *cmax, int *rmax);
 
+size_t numberOfL1FileImagesToProcess(char *l1file, double firstCalTime, double lastCaltime);
+
 #endif // _ANALYSIS_H

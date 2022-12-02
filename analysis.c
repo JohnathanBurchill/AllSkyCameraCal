@@ -22,12 +22,14 @@
 
 #include "main.h"
 #include "star.h"
+#include "util.h"
 
 #include <stdio.h>
 #include <stdbool.h>
 #include <fts.h>
 #include <string.h>
 #include <math.h>
+#include <libgen.h>
 
 #include <cdf.h>
 
@@ -90,8 +92,9 @@ int analyzeImagery(ProgramState *state)
 
     // Only one version of each L1 file can be in the l1dir
     char *dir[2] = {state->l1dir, NULL};
-    FTS *fts = fts_open(dir, FTS_LOGICAL, &sortL1Listing);
 
+    // Open directory listing to get expected number of images 
+    FTS *fts = fts_open(dir, FTS_LOGICAL, &sortL1Listing);
     FTSENT *e = fts_read(fts);
 
     double fileStartEpoch = 0;
@@ -99,6 +102,21 @@ int analyzeImagery(ProgramState *state)
 
     double t1 = state->firstCalTime;
     double t2 = state->lastCalTime;
+
+    while (e != NULL)
+    {
+        fileStartEpoch = epochFromL1Filename(e->fts_name);
+        fileStopEpoch = fileStartEpoch + 3600000; // one hour: L1 files cover 1 hour intervals
+        if (fileStartEpoch != ILLEGAL_EPOCH_VALUE && !((fileStartEpoch < t1 && fileStopEpoch <= t1) || (fileStartEpoch >= t2 && fileStopEpoch > t2)))
+            state->expectedNumberOfImages += numberOfL1FileImagesToProcess(fts->fts_path, t1, t2);
+
+        e = fts_read(fts);
+    }
+
+    // Re-open listing to do the processing
+    fts_close(fts);
+    fts = fts_open(dir, FTS_LOGICAL, &sortL1Listing);
+    e = fts_read(fts);
 
     while (e != NULL)
     {
@@ -566,6 +584,10 @@ int analyzeL1FileImages(ProgramState *state, char *l1file)
             state->rotationAngles[imageCounter] = NAN;
         }
         imageCounter++;
+        if (state->showProgress)
+        {
+            fprintf(stderr, "\r%lu of %lu images processed", imageCounter, state->expectedNumberOfImages);
+        }
     }
     if (imageCounter > startImage)
     {
@@ -1063,5 +1085,49 @@ int calculatePositionOfMax(uint16_t image[IMAGE_COLUMNS][IMAGE_ROWS], int boxHal
     }
 
     return momentCounter;
+
+}
+
+size_t numberOfL1FileImagesToProcess(char *l1file, double firstCalTime, double lastCalTime)
+{
+    CDFid cdf = NULL;
+    CDFstatus cdfStatus = CDFopen(l1file, &cdf);
+    if (cdfStatus != CDF_OK)
+        return 0;
+
+    char site[5];
+    char *basefile = basename(l1file);
+    if (strlen(basefile) < 15)
+        return 0;
+
+    int nchars = snprintf(site, 5, "%s", basefile + 11);
+    if (nchars < 4)
+        return 0;
+
+    char cdfVarName[CDF_VAR_NAME_LEN + 1] = {0};
+    // Get time and continue only if within requested analysis time range
+    snprintf(cdfVarName, CDF_VAR_NAME_LEN + 1, "thg_asf_%s_epoch", site);
+    long maxFileRecord = 0;
+    cdfStatus = CDFgetzVarMaxWrittenRecNum(cdf, CDFgetVarNum(cdf, cdfVarName), &maxFileRecord);
+    if (cdfStatus != CDF_OK || maxFileRecord == 0)
+        return 0;
+
+    long nImages = maxFileRecord + 1;
+
+    double imageTime = 0.0;
+    size_t expectedNumberOfImagesToProcess = 0;
+    for (long ind = 0; ind < nImages; ind++)
+    {
+        snprintf(cdfVarName, CDF_VAR_NAME_LEN + 1, "thg_asf_%s_epoch", site);
+        cdfStatus = CDFgetVarRangeRecordsByVarName(cdf, cdfVarName, ind, ind, &imageTime);
+        if (cdfStatus != CDF_OK)
+            continue;
+        if (imageTime < firstCalTime || imageTime > lastCalTime)
+            continue;
+
+        expectedNumberOfImagesToProcess++;
+    }
+
+    return (size_t)expectedNumberOfImagesToProcess;
 
 }
