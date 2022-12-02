@@ -1095,14 +1095,16 @@ size_t numberOfL1FileImagesToProcess(char *l1file, double firstCalTime, double l
     if (cdfStatus != CDF_OK)
         return 0;
 
+    size_t expectedNumberOfImagesToProcess = 0;
+
     char site[5];
     char *basefile = basename(l1file);
     if (strlen(basefile) < 15)
-        return 0;
+        goto cleanup;
 
     int nchars = snprintf(site, 5, "%s", basefile + 11);
     if (nchars < 4)
-        return 0;
+        goto cleanup;
 
     char cdfVarName[CDF_VAR_NAME_LEN + 1] = {0};
     // Get time and continue only if within requested analysis time range
@@ -1110,12 +1112,11 @@ size_t numberOfL1FileImagesToProcess(char *l1file, double firstCalTime, double l
     long maxFileRecord = 0;
     cdfStatus = CDFgetzVarMaxWrittenRecNum(cdf, CDFgetVarNum(cdf, cdfVarName), &maxFileRecord);
     if (cdfStatus != CDF_OK || maxFileRecord == 0)
-        return 0;
+        goto cleanup;
 
     long nImages = maxFileRecord + 1;
 
     double imageTime = 0.0;
-    size_t expectedNumberOfImagesToProcess = 0;
     for (long ind = 0; ind < nImages; ind++)
     {
         snprintf(cdfVarName, CDF_VAR_NAME_LEN + 1, "thg_asf_%s_epoch", site);
@@ -1127,6 +1128,9 @@ size_t numberOfL1FileImagesToProcess(char *l1file, double firstCalTime, double l
 
         expectedNumberOfImagesToProcess++;
     }
+
+cleanup:
+    CDFclose(cdf);
 
     return (size_t)expectedNumberOfImagesToProcess;
 
