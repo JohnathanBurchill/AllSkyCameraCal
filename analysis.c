@@ -196,26 +196,38 @@ int analyzeL1FileImages(ProgramState *state, char *l1file)
 
 
     size_t startImage = state->nImages;
-    long imageCounter = startImage;
+    size_t imageCounter = startImage;
     state->nImages += nFileImages;
     void *mem = realloc(state->imageTimes, sizeof(double) * state->nImages);
     if (mem == NULL)
+    {
+        status = ASCC_MEM;
         goto cleanup;
+    }
     state->imageTimes = mem;
 
     mem = realloc(state->pointingErrorDcms, 9 * sizeof(float) * state->nImages);
     if (mem == NULL)
+    {
+        status = ASCC_MEM;
         goto cleanup;
+    }
     state->pointingErrorDcms = mem;
 
     mem = realloc(state->rotationVectors, 3 * sizeof(float) * state->nImages);
     if (mem == NULL)
+    {
+        status = ASCC_MEM;
         goto cleanup;
+    }
     state->rotationVectors = mem;
 
     mem = realloc(state->rotationAngles, sizeof(float) * state->nImages);
     if (mem == NULL)
+    {
+        status = ASCC_MEM;
         goto cleanup;
+    }
     state->rotationAngles = mem;
 
     double imageTime = 0.0;
@@ -285,13 +297,14 @@ int analyzeL1FileImages(ProgramState *state, char *l1file)
         index = ind;
         // printf("%s: i = %ld, nImageFiles: %ld\n", l1file, ind, nFileImages);
         snprintf(cdfVarName, CDF_VAR_NAME_LEN + 1, "thg_asf_%s_epoch", state->site);
+        // printf("index: %ld\n", index);
         cdfStatus = CDFgetVarRangeRecordsByVarName(cdf, cdfVarName, index, index, &imageTime);
         if (cdfStatus != CDF_OK)
             continue;
         if (imageTime < state->firstCalTime || imageTime > state->lastCalTime)
             continue;
-        // printf("%ld: %lf\n", startImage+imageCounter, imageTime);
-        state->imageTimes[startImage + imageCounter] = imageTime;
+        // printf("%ld: %lf\n", imageCounter, imageTime);
+        state->imageTimes[imageCounter] = imageTime;
         encodeEPOCH4(imageTime, timeString);
         // printf("Analyzing image at %s\n", timeString);
 
@@ -554,27 +567,42 @@ int analyzeL1FileImages(ProgramState *state, char *l1file)
         }
         imageCounter++;
     }
-    state->nImages = imageCounter;
-    // Resize to actual number of images analyzed
-    mem = realloc(state->imageTimes, sizeof(double) * state->nImages);
-    if (mem == NULL)
-        goto cleanup;
-    state->imageTimes = mem;
+    if (state->nImages != imageCounter)
+    {
+        state->nImages = imageCounter;
+        // Resize to match number of images analyzed
+        mem = realloc(state->imageTimes, sizeof(double) * state->nImages);
+        if (mem == NULL)
+        {
+            status = ASCC_MEM;
+            goto cleanup;
+        }
+        state->imageTimes = mem;
 
-    mem = realloc(state->pointingErrorDcms, 9 * sizeof(float) * state->nImages);
-    if (mem == NULL)
-        goto cleanup;
-    state->pointingErrorDcms = mem;
+        mem = realloc(state->pointingErrorDcms, 9 * sizeof(float) * state->nImages);
+        if (mem == NULL)
+        {
+            status = ASCC_MEM;
+            goto cleanup;
+        }
+        state->pointingErrorDcms = mem;
 
-    mem = realloc(state->rotationVectors, 3 * sizeof(float) * state->nImages);
-    if (mem == NULL)
-        goto cleanup;
-    state->rotationVectors = mem;
+        mem = realloc(state->rotationVectors, 3 * sizeof(float) * state->nImages);
+        if (mem == NULL)
+        {
+            status = ASCC_MEM;
+            goto cleanup;
+        }
+        state->rotationVectors = mem;
 
-    mem = realloc(state->rotationAngles, sizeof(float) * state->nImages);
-    if (mem == NULL)
-        goto cleanup;
-    state->rotationAngles = mem;
+        mem = realloc(state->rotationAngles, sizeof(float) * state->nImages);
+        if (mem == NULL)
+        {
+            status = ASCC_MEM;
+            goto cleanup;
+        }
+        state->rotationAngles = mem;
+    }
 
 
 cleanup:
