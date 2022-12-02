@@ -169,6 +169,33 @@ int exportCdf(ProgramState *state)
         goto cleanup;
     }
 
+    cdfstatus = CDFcreateAttr(cdf, "Mission", GLOBAL_SCOPE, &attrNum);
+    if (cdfstatus != CDF_OK)
+    {
+        status = ASCC_CDF_WRITE;
+        goto cleanup;
+    }
+    char *mission = "THEMIS ASI";
+    cdfstatus = CDFputAttrgEntry(cdf, attrNum, entry, CDF_CHAR, strlen(mission), mission);
+    if (cdfstatus != CDF_OK)
+    {
+        status = ASCC_CDF_WRITE;
+        goto cleanup;
+    }
+
+    cdfstatus = CDFcreateAttr(cdf, "Site", GLOBAL_SCOPE, &attrNum);
+    if (cdfstatus != CDF_OK)
+    {
+        status = ASCC_CDF_WRITE;
+        goto cleanup;
+    }
+    cdfstatus = CDFputAttrgEntry(cdf, attrNum, entry, CDF_CHAR, strlen(state->site), state->site);
+    if (cdfstatus != CDF_OK)
+    {
+        status = ASCC_CDF_WRITE;
+        goto cleanup;
+    }
+
     cdfstatus = CDFcreateAttr(cdf, "ProcessingDate", GLOBAL_SCOPE, &attrNum);
     if (cdfstatus != CDF_OK)
     {
