@@ -45,6 +45,8 @@ int main(int argc, char **argv)
     state.skymapdir = ".";
     state.stardir = ".";
     state.exportdir = ".";
+    state.processingCommand = argv;
+    state.processingCommandLength = argc;
 
     int nOptions = 0;
 
@@ -263,8 +265,6 @@ int main(int argc, char **argv)
     // Exclude obvious snow and cloud?
     // Could count the number of stars and reject images if the count is too low?
 
-
-
     // For each image
 
         // get the universal time
@@ -308,7 +308,7 @@ int main(int argc, char **argv)
 
     // Loop over all L1 files between the requested calibration time.
     status = analyzeImagery(&state);
-    if (state.showProgress)
+    if (state.showProgress && state.expectedNumberOfImages > 0)
         fprintf(stderr, "\r\n");
 
     state.processingStopEpoch = currentEpoch();

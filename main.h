@@ -91,13 +91,15 @@ typedef struct ProgramState
     char *skymapfilename;
     bool skymap;
 
+    char *calibrationDateUsed;
+    char *calibrationDateGenerated;
     float siteLatitudeGeodetic;
     float siteLongitudeGeodetic;
     float siteAltitudeMetres;
 
     uint16_t sitePixelOffsets[IMAGE_COLUMNS][IMAGE_ROWS];
-    float l2CameraElevations[IMAGE_COLUMNS][IMAGE_ROWS];
-    float l2CameraAzimuths[IMAGE_COLUMNS][IMAGE_ROWS];
+    float cameraElevations[IMAGE_COLUMNS][IMAGE_ROWS];
+    float cameraAzimuths[IMAGE_COLUMNS][IMAGE_ROWS];
 
     float pixelX[IMAGE_COLUMNS][IMAGE_ROWS];
     float pixelY[IMAGE_COLUMNS][IMAGE_ROWS];
@@ -110,6 +112,8 @@ typedef struct ProgramState
     float *pointingErrorDcms;
     float *rotationVectors;
     float *rotationAngles;
+    uint16_t *nCalibrationStarsUsed;
+
 
     bool printStarInfo;
 
@@ -118,6 +122,9 @@ typedef struct ProgramState
 
     double processingStartEpoch;
     double processingStopEpoch;
+
+    char **processingCommand;
+    int processingCommandLength;
 
 } ProgramState;
 

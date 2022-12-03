@@ -112,9 +112,12 @@ int analyzeImagery(ProgramState *state)
 
         e = fts_read(fts);
     }
+    fts_close(fts);
+
+    if (state->expectedNumberOfImages == 0)
+        return ASCC_CDF_EXPORT_NO_DATA;
 
     // Re-open listing to do the processing
-    fts_close(fts);
     fts = fts_open(dir, FTS_LOGICAL, &sortL1Listing);
     e = fts_read(fts);
 
@@ -248,6 +251,14 @@ int analyzeL1FileImages(ProgramState *state, char *l1file)
     }
     state->rotationAngles = mem;
 
+    mem = realloc(state->nCalibrationStarsUsed, sizeof(uint16_t) * state->nImages);
+    if (mem == NULL)
+    {
+        status = ASCC_MEM;
+        goto cleanup;
+    }
+    state->nCalibrationStarsUsed = mem;
+
     double imageTime = 0.0;
     char timeString[EPOCH4_STRING_LEN+1];
 
@@ -364,7 +375,7 @@ int analyzeL1FileImages(ProgramState *state, char *l1file)
             {
                 for (int r = 0; r < IMAGE_COLUMNS; r++)
                 {
-                    if (!isfinite(state->l2CameraAzimuths[c][r]) || !isfinite(state->l2CameraElevations[c][r]))
+                    if (!isfinite(state->cameraAzimuths[c][r]) || !isfinite(state->cameraElevations[c][r]))
                         continue;
                     // TODO use a GPU
                     starx = cos((90.0 - cal->predictedAz)*M_PI/180.0) * cos(cal->predictedEl*M_PI/180.0);
@@ -482,86 +493,95 @@ int analyzeL1FileImages(ProgramState *state, char *l1file)
                 cal->previousImageMomentColumn = cal->imageMomentColumn;
                 cal->previousImageMomentRow = cal->imageMomentRow;
             }
-            statAz = gsl_stats_float_median(azVals, 1, statCounter);
-            statEl = gsl_stats_float_median(elVals, 1, statCounter);
-            // gsl_sort_float(azVals, 1, statCounter);
-            // float statAz = gsl_stats_float_trmean_from_sorted_data(0.25, azVals, 1, statCounter);
-            // gsl_sort_float(elVals, 1, statCounter);
-            // float statEl = gsl_stats_float_trmean_from_sorted_data(0.25, elVals, 1, statCounter);
-
-            // Calculate rotation matrix for this image
-            // statCounter x 3 matrices
-            gsl_matrix_view a = gsl_matrix_view_array(predictedAzElXYZ, statCounter, 3);
-            gsl_matrix_view b = gsl_matrix_view_array(measuredAzElXYZ, statCounter, 3);
-            // These are Nx3 matrices. Using the method of https://cnx.org/contents/HV-RsdwL@23/Molecular-Distance-Measures, the matrices should be 3xN.
-            // calculate C = X^T * Y
-            int gslStatus = gsl_blas_dgemm(CblasTrans, CblasNoTrans, 1.0, &a.matrix, &b.matrix, 0, &c.matrix);
-            if (gslStatus != GSL_SUCCESS)
-                goto cleanup;
-
-            gsl_matrix *d = &c.matrix;
-            // From wikipedia article for determinant
-            double da = gsl_matrix_get(d, 0, 0);
-            double db = gsl_matrix_get(d, 0, 1);
-            double dc = gsl_matrix_get(d, 0, 2);
-            double dd = gsl_matrix_get(d, 1, 0);
-            double de = gsl_matrix_get(d, 1, 1);
-            double df = gsl_matrix_get(d, 1, 2);
-            double dg = gsl_matrix_get(d, 2, 0);
-            double dh = gsl_matrix_get(d, 2, 1);
-            double di = gsl_matrix_get(d, 2, 2);
-            double cDet = da*de*di + db*df*dg + dc*dd*dh - dc*de*dg - db*dd*di - da*df*dh;
-            gsl_matrix_set(&cDetSign.matrix, 0, 0, 1.0);
-            gsl_matrix_set(&cDetSign.matrix, 1, 1, 1.0);
-            gsl_matrix_set(&cDetSign.matrix, 2, 2, cDet >= 0.0 ? 1.0 : -1.0);
-
-            gslStatus = gsl_linalg_SV_decomp(&c.matrix, &v.matrix, &s.vector, &work.vector);
-            if (gslStatus != GSL_SUCCESS)
-                goto cleanup;
-
-            // C now contains W for the SVD of C as W S V^T
-            // The DCM is then
-            gslStatus = gsl_blas_dgemm(CblasNoTrans, CblasTrans, 1.0, &cDetSign.matrix, &v.matrix, 0, &v1.matrix);
-            if (gslStatus != GSL_SUCCESS)
-                goto cleanup;
-
-            gslStatus = gsl_blas_dgemm(CblasNoTrans, CblasNoTrans, 1.0, &c.matrix, &v1.matrix, 0, &dcm.matrix);
-            if (gslStatus != GSL_SUCCESS)
-                goto cleanup;
-
-            // Probably safe to assume that the DCM is not symmetric. 
-            // TODO check this
-
-            // from https://en.wikipedia.org/wiki/Rotation_matrix#Conversion_from_rotation_matrix_to_axis–angle
-            gsl_vector_set(&rotationVector.vector, 0, gsl_matrix_get(&dcm.matrix, 2, 1) - gsl_matrix_get(&dcm.matrix, 1, 2));
-            gsl_vector_set(&rotationVector.vector, 1, gsl_matrix_get(&dcm.matrix, 0, 2) - gsl_matrix_get(&dcm.matrix, 2, 0));
-            gsl_vector_set(&rotationVector.vector, 2, gsl_matrix_get(&dcm.matrix, 1, 0) - gsl_matrix_get(&dcm.matrix, 0, 1));
-            double *r = rotationVectorArr;
-            rotationVectorLength = sqrt(r[0] * r[0] + r[1] * r[1] + r[2] * r[2]);
-            rotationAngle = asin(rotationVectorLength / 2.0) / M_PI * 180.0;
-            if (rotationVectorLength > 0.0)
+            if (statCounter > 0)
             {
-                r[0] /= rotationVectorLength;
-                r[1] /= rotationVectorLength;
-                r[2] /= rotationVectorLength;
+                statAz = gsl_stats_float_median(azVals, 1, statCounter);
+                statEl = gsl_stats_float_median(elVals, 1, statCounter);
+
+                // Calculate rotation matrix for this image
+                // statCounter x 3 matrices
+                gsl_matrix_view a = gsl_matrix_view_array(predictedAzElXYZ, statCounter, 3);
+                gsl_matrix_view b = gsl_matrix_view_array(measuredAzElXYZ, statCounter, 3);
+                // These are Nx3 matrices. Using the method of https://cnx.org/contents/HV-RsdwL@23/Molecular-Distance-Measures, the matrices should be 3xN.
+                // calculate C = X^T * Y
+                int gslStatus = gsl_blas_dgemm(CblasTrans, CblasNoTrans, 1.0, &a.matrix, &b.matrix, 0, &c.matrix);
+                if (gslStatus != GSL_SUCCESS)
+                    goto cleanup;
+
+                gsl_matrix *d = &c.matrix;
+                // From wikipedia article for determinant
+                double da = gsl_matrix_get(d, 0, 0);
+                double db = gsl_matrix_get(d, 0, 1);
+                double dc = gsl_matrix_get(d, 0, 2);
+                double dd = gsl_matrix_get(d, 1, 0);
+                double de = gsl_matrix_get(d, 1, 1);
+                double df = gsl_matrix_get(d, 1, 2);
+                double dg = gsl_matrix_get(d, 2, 0);
+                double dh = gsl_matrix_get(d, 2, 1);
+                double di = gsl_matrix_get(d, 2, 2);
+                double cDet = da*de*di + db*df*dg + dc*dd*dh - dc*de*dg - db*dd*di - da*df*dh;
+                gsl_matrix_set(&cDetSign.matrix, 0, 0, 1.0);
+                gsl_matrix_set(&cDetSign.matrix, 1, 1, 1.0);
+                gsl_matrix_set(&cDetSign.matrix, 2, 2, cDet >= 0.0 ? 1.0 : -1.0);
+
+                gslStatus = gsl_linalg_SV_decomp(&c.matrix, &v.matrix, &s.vector, &work.vector);
+                if (gslStatus != GSL_SUCCESS)
+                    goto cleanup;
+
+                // C now contains W for the SVD of C as W S V^T
+                // The DCM is then
+                gslStatus = gsl_blas_dgemm(CblasNoTrans, CblasTrans, 1.0, &cDetSign.matrix, &v.matrix, 0, &v1.matrix);
+                if (gslStatus != GSL_SUCCESS)
+                    goto cleanup;
+
+                gslStatus = gsl_blas_dgemm(CblasNoTrans, CblasNoTrans, 1.0, &c.matrix, &v1.matrix, 0, &dcm.matrix);
+                if (gslStatus != GSL_SUCCESS)
+                    goto cleanup;
+
+                // Probably safe to assume that the DCM is not symmetric. 
+                // TODO check this
+
+                // from https://en.wikipedia.org/wiki/Rotation_matrix#Conversion_from_rotation_matrix_to_axis–angle
+                gsl_vector_set(&rotationVector.vector, 0, gsl_matrix_get(&dcm.matrix, 2, 1) - gsl_matrix_get(&dcm.matrix, 1, 2));
+                gsl_vector_set(&rotationVector.vector, 1, gsl_matrix_get(&dcm.matrix, 0, 2) - gsl_matrix_get(&dcm.matrix, 2, 0));
+                gsl_vector_set(&rotationVector.vector, 2, gsl_matrix_get(&dcm.matrix, 1, 0) - gsl_matrix_get(&dcm.matrix, 0, 1));
+                double *r = rotationVectorArr;
+                rotationVectorLength = sqrt(r[0] * r[0] + r[1] * r[1] + r[2] * r[2]);
+                rotationAngle = asin(rotationVectorLength / 2.0) / M_PI * 180.0;
+                if (rotationVectorLength > 0.0)
+                {
+                    r[0] /= rotationVectorLength;
+                    r[1] /= rotationVectorLength;
+                    r[2] /= rotationVectorLength;
+                }
+                else
+                {
+                    r[0] = 1.0;
+                    r[1] = 0.0;
+                    r[2] = 0.0;
+                }
+                // Store fit for later export
+                for (int m = 0; m < 9; m++)
+                    state->pointingErrorDcms[imageCounter * 9 + m] = dcmArr[m];
+                for (int m = 0; m < 3; m++)
+                    state->rotationVectors[imageCounter* 3 + m] = rotationVectorArr[m];
+                state->rotationAngles[imageCounter] = rotationAngle;
+                state->nCalibrationStarsUsed[imageCounter] = (uint16_t)statCounter;
             }
             else
             {
-                r[0] = 1.0;
-                r[1] = 0.0;
-                r[2] = 0.0;
-            }
-            // Store fit for later export
-            for (int m = 0; m < 9; m++)
-                state->pointingErrorDcms[imageCounter * 9 + m] = dcmArr[m];
-            for (int m = 0; m < 3; m++)
-                state->rotationVectors[imageCounter* 3 + m] = rotationVectorArr[m];
-            state->rotationAngles[imageCounter] = rotationAngle;
+                for (int m = 0; m < 9; m++)
+                    state->pointingErrorDcms[imageCounter * 9 + m] = NAN;
+                for (int m = 0; m < 3; m++)
+                    state->rotationVectors[imageCounter* 3 + m] = NAN;
+                state->rotationAngles[imageCounter] = NAN;
+                state->nCalibrationStarsUsed[imageCounter] = 0;
 
+            }
             for (int i = 0; i < nCalStars && state->printStarInfo; i++)
             {
                 cal = &calStars[i];
-                if (cal->includeInCalibration)
+                if (cal->includeInCalibration && statCounter > 0)
                 {
                     // TODO update the pixel azimuths and elevations by adding the dAzs and dEls?
                     // and store all info in a CDF
@@ -582,6 +602,7 @@ int analyzeL1FileImages(ProgramState *state, char *l1file)
             for (int m = 0; m < 3; m++)
                 state->rotationVectors[imageCounter * 3 + m] = NAN;
             state->rotationAngles[imageCounter] = NAN;
+            state->nCalibrationStarsUsed[imageCounter] = 0;
         }
         imageCounter++;
         if (state->showProgress)
@@ -641,6 +662,14 @@ int analyzeL1FileImages(ProgramState *state, char *l1file)
             goto cleanup;
         }
         state->rotationAngles = mem;
+
+        mem = realloc(state->nCalibrationStarsUsed, sizeof(uint16_t) * state->nImages);
+        if (mem == NULL)
+        {
+            status = ASCC_MEM;
+            goto cleanup;
+        }
+        state->nCalibrationStarsUsed = mem;
     }
 
 
