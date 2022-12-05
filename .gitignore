@@ -1,10 +1,19 @@
 build
 example
+.cache
+.gitconfig
 /**/*~
-# Prerequisites
-*.d
+.ssh
+.lesshst
+.local
+.viminfo
+.local
+.vscode
+.vscode-server
 
 # Object files
+# Prerequisites
+*.d
 *.o
 *.ko
 *.obj
