@@ -44,9 +44,9 @@ SET(LIBS ${LIBS} ${MATH} ${GSL_LIBRARY} ${READSAVE} cdf )
 INCLUDE_DIRECTORIES(${INCLUDE_DIRS} ${GSL_INCLUDE_DIRS})
 
 ADD_EXECUTABLE(allskycameracal main.c import.c analysis.c export.c util.c)
-TARGET_LINK_LIBRARIES(allskycameracal ${LIBS})
+TARGET_LINK_LIBRARIES(allskycameracal -static ${LIBS})
 
 ADD_EXECUTABLE(testsiteimport test_site_import.c import.c)
-TARGET_LINK_LIBRARIES(testsiteimport ${LIBS})
+TARGET_LINK_LIBRARIES(testsiteimport -static ${LIBS})
 
 install(TARGETS allskycameracal DESTINATION $ENV{HOME}/bin)

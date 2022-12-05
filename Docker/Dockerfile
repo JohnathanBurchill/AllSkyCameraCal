@@ -1,6 +1,6 @@
 # AllSkyCameraCal: Docker/Dockerfile
 
-# Copyright (C) 2022  Johnathan K Burchill
+# Copyright (C) 2022  Johnathan K Burchillhome/scien
 
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -15,60 +15,28 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-FROM ubuntu
-RUN apt -y update
-RUN apt -y upgrade
-RUN apt -y install wget
-RUN apt -y install gcc
-RUN apt -y install g++
-RUN apt -y install cmake
-RUN apt -y install make
-RUN apt -y install bash
-RUN apt -y install zlib1g
-RUN apt -y install zlib1g-dev
-RUN apt -y install libxml2
-RUN apt -y install libxml2-dev
-RUN apt -y install libgsl-dev
-RUN apt -y install libncurses-dev
-RUN apt -y install git
-RUN apt -y install gdb
-RUN apt -y install cgdb
-RUN apt -y install valgrind
-RUN apt -y install vim
-RUN apt -y install pkg-config
-RUN apt -y install zip
-RUN apt -y install unzip
-RUN addgroup science
-RUN useradd -g science science
-USER science
-WORKDIR /home/science/src
-RUN cd /home/science && \
-wget https://spdf.gsfc.nasa.gov/pub/software/cdf/dist/cdf38_1/linux/cdf38_1-dist-cdf.tar.gz && \
-tar xf cdf38_1-dist-cdf.tar.gz && \
-cd cdf38_1-dist && \
-make OS=linux ENV=gnu CURSES=no all
+FROM johnathanburchill/readsave:latest AS readsave
+
+FROM johnathanburchill/utils:cdev AS asccdev
 USER root
-RUN cd /home/science/cdf38_1-dist && \
-make INSTALLDIR=/usr/local install && \
-ldconfig
+COPY --from=readsave /readsave.h /usr/local/include/.
+COPY --from=readsave /libredsafe.a /usr/local/lib/.
+RUN ldconfig
 USER science
-RUN cd /home/science && \
-rm -rf cdf38_1-dist*
-RUN cd /home/science && \ 
-git clone https://github.com/JohnathanBurchill/ReadSave && \
-cd ReadSave && \
-mkdir build && \
-cd build && \
-cmake .. && \
-make
-USER root
-RUN cd /home/science/ReadSave/build && \
-cp libredsafe.a /usr/local/lib && \
-ldconfig && \
-cp ../include/readsave.h /usr/local/include/.
-USER science
-VOLUME ["/home/science/src"]
+VOLUME ["/home/science/"]
 ENTRYPOINT ["/bin/bash"]
 
+FROM asccdev AS asccbuild
+RUN mkdir /home/science/build
+WORKDIR /home/science/build
+RUN git clone https://github.com/JohnathanBurchill/AllSkyCameraCal
+WORKDIR /home/science/build/AllSkyCameraCal
+RUN mkdir build
+WORKDIR /home/science/build/AllSkyCameraCal/build
+RUN cmake ..
+RUN make 
 
+FROM scratch AS deploy
+COPY from=asccbuild /home/science/build/AllSkyCameraCal/build/allskycameracal /.
+ENTRYPOINT ["/allskycameracal"]
 
