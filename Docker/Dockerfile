@@ -27,12 +27,13 @@ VOLUME ["/home/science/"]
 ENTRYPOINT ["/bin/bash"]
 
 FROM asccdev AS asccbuild
+USER root
 RUN mkdir /home/science/build
 WORKDIR /home/science/build
 RUN git clone https://github.com/JohnathanBurchill/AllSkyCameraCal
-WORKDIR /home/science/build/AllSkyCameraCal
+WORKDIR AllSkyCameraCal
 RUN mkdir build
-WORKDIR /home/science/build/AllSkyCameraCal/build
+WORKDIR build
 RUN cmake ..
 RUN make 
 
