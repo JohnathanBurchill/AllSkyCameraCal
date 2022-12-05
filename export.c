@@ -395,7 +395,7 @@ int exportCdf(ProgramState *state)
     }
     for (int i = 0; i < state->processingCommandLength; i++)
     {
-        command = strncat(command, state->processingCommand[i], strlen(state->processingCommand[i]));
+        command = strncat(command, state->processingCommand[i], commandLength);
         if (i != state->processingCommandLength-1)
             command = strcat(command, " ");
     }
