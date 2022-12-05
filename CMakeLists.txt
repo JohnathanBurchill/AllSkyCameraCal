@@ -36,17 +36,19 @@ INCLUDE_DIRECTORIES(include)
 FIND_PACKAGE(GSL REQUIRED)
 
 FIND_LIBRARY(MATH libm.a)
+FIND_LIBRARY(GSLSTATIC libgsl.a)
+FIND_LIBRARY(GSLBLASSTATIC libgslcblas.a)
 
-FIND_LIBRARY(READSAVE redsafe)
-
-SET(LIBS ${LIBS} ${MATH} ${GSL_LIBRARY} ${READSAVE} cdf )
+FIND_LIBRARY(READSAVE libredsafe.a)
+FIND_LIBRARY(CDF libcdf.a)
+FIND_LIBRARY(LIBC libc.a)
 
 INCLUDE_DIRECTORIES(${INCLUDE_DIRS} ${GSL_INCLUDE_DIRS})
 
 ADD_EXECUTABLE(allskycameracal main.c import.c analysis.c export.c util.c)
-TARGET_LINK_LIBRARIES(allskycameracal -static ${LIBS})
+TARGET_LINK_LIBRARIES(allskycameracal -static ${CDF} ${LIBC} ${GSLSTATIC} ${GSLBLASSTATIC} ${READSAVE} ${MATH})
 
 ADD_EXECUTABLE(testsiteimport test_site_import.c import.c)
-TARGET_LINK_LIBRARIES(testsiteimport -static ${LIBS})
+TARGET_LINK_LIBRARIES(testsiteimport -static ${LIBC} ${CDF} ${READSAVE} ${MATH})
 
 install(TARGETS allskycameracal DESTINATION $ENV{HOME}/bin)
