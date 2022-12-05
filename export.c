@@ -46,7 +46,7 @@ int exportCdf(ProgramState *state)
     char format[EPOCHx_FORMAT_MAX] = "<year><mm.02><dom.02>T<hour><min><sec>";
     encodeEPOCHx(state->firstCalTime, format, firstTime);
     encodeEPOCHx(state->lastCalTime, format, lastTime);
-    snprintf(cdfFilename, CDF_PATHNAME_LEN, "themis_%s_camera_pointing_errors_%s_%s_%s", state->site, firstTime, lastTime, EXPORT_CDF_VERSION_STRING);
+    snprintf(cdfFilename, CDF_PATHNAME_LEN, "%s/themis_%s_camera_pointing_errors_%s_%s_%s", state->exportdir, state->site, firstTime, lastTime, EXPORT_CDF_VERSION_STRING);
     CDFstatus cdfstatus = CDFcreateCDF(cdfFilename, &cdf);
 
     int status = ASCC_OK;

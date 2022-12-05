@@ -80,6 +80,8 @@ typedef struct ProgramState
     int32_t nMagnitudes;
     int32_t bytesPerStarEntry;
 
+    char *exportdir;
+
     char *l1dir;
     char **l1filenames;
     size_t nl1filenames;
@@ -105,8 +107,6 @@ typedef struct ProgramState
     float pixelY[IMAGE_COLUMNS][IMAGE_ROWS];
     float pixelZ[IMAGE_COLUMNS][IMAGE_ROWS];
 
-
-    char *exportdir;
     size_t nImages;
     double *imageTimes;
     float *pointingErrorDcms;

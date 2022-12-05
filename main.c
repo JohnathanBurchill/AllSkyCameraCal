@@ -40,6 +40,7 @@ int main(int argc, char **argv)
     state.nCalibrationStars = N_CALIBRATION_STARS;
     state.starSearchBoxWidth = STAR_SEARCH_BOX_WIDTH;
     state.starMaxJitterPixels = STAR_MAX_PIXEL_JITTER;
+    state.exportdir = ".";
     state.l1dir = ".";
     state.l2dir = ".";
     state.skymapdir = ".";
@@ -94,6 +95,11 @@ int main(int argc, char **argv)
                 fprintf(stderr, "Star search box width must be greater than 0.0 pixels.\n");
                 return EXIT_FAILURE;
             }
+        }
+        else if (strncmp(argv[i], "--exportdir=", 12) == 0)
+        {
+            nOptions++;
+            state.exportdir = argv[i]+12;
         }
         else if (strncmp(argv[i], "--l1dir=", 8) == 0)
         {
@@ -343,12 +349,10 @@ cleanup:
 
 void usage(char *name)
 {
-    printf("Usage: %s <site> <firstCalDate> <lastCalDate> [--l1dir=<dir>] [--l2dir=<dir>] [--skymap=<file>] [--use-skymap] [--skymapdir=<dir>] [--stardir=<star>] [--number-of-calibration-stars=N] [--star-search-box-width=<widthInPixels>] [--star-max-jitter-pixels=<value>] [--exportdir=<dir>] [--print-star-info] [--show-progress] [--help] [--usage]\n", name);
+    printf("Usage: %s <site> <firstCalDate> <lastCalDate> [--exportdir=<dir>] [--l1dir=<dir>] [--l2dir=<dir>] [--skymap=<file>] [--use-skymap] [--skymapdir=<dir>] [--stardir=<star>] [--number-of-calibration-stars=N] [--star-search-box-width=<widthInPixels>] [--star-max-jitter-pixels=<value>] [--exportdir=<dir>] [--print-star-info] [--show-progress] [--help] [--usage]\n", name);
     printf(" estimates new THEMIS ASI elevation and azimuth map for <site> using suitable ASI images from <firstCalDate> to <lastCalDate>.\n");
     printf(" Dates have the form yyyy-mm-ddTHH:MM:SS.sss interpreted as universal times.\n");
-    printf(" <l1dir> is the path to the directory containing the THEMIS level 1 ASI files.\n");
-    printf(" <l2dir> is the path to the directory containing the THEMIS l2 ASI files.\n");
-    printf(" Options:\n");
+    printf("%20s : sets the directory to export the results to. Defaults to \".\".\n", "--exportdir=<dir>");
     printf("%20s : sets the directory containing THEMIS level 1 (ASI) files. Defaults to \".\". Only one version of each L1 file can be in this directory.\n", "--l1dir=<dir>");
     printf("%20s : sets the directory containing THEMIS level 2 (calibration) files. Defaults to \".\".\n", "--l2dir=<dir>");
     printf("%20s : sets the directory containing the Yale Bright Star Catalog file (BSC5ra). Defaults to \".\".\n", "--stardir=<dir>");
