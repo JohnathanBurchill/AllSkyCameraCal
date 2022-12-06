@@ -10,6 +10,7 @@ example
 .local
 .vscode
 .vscode-server
+.bash_history
 
 # Object files
 # Prerequisites
