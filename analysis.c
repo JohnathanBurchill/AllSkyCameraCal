@@ -84,7 +84,6 @@ int sortL1Listing(const FTSENT **first, const FTSENT **second)
 
 int analyzeImagery(ProgramState *state)
 {
-
     if (state == NULL)
         return ASCC_ARGUMENTS;
 
@@ -116,6 +115,9 @@ int analyzeImagery(ProgramState *state)
 
     if (state->expectedNumberOfImages == 0)
         return ASCC_CDF_EXPORT_NO_DATA;
+
+    if (state->verbose)
+        fprintf(stderr, "Found %lu images to process.\n", state->expectedNumberOfImages);
 
     // Re-open listing to do the processing
     fts = fts_open(dir, FTS_LOGICAL, &sortL1Listing);

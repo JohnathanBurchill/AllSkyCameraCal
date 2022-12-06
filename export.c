@@ -26,6 +26,7 @@
 #include <string.h>
 #include <time.h>
 #include <libgen.h>
+#include <unistd.h>
 
 #include <cdf.h>
 
@@ -47,13 +48,28 @@ int exportCdf(ProgramState *state)
     encodeEPOCHx(state->firstCalTime, format, firstTime);
     encodeEPOCHx(state->lastCalTime, format, lastTime);
     snprintf(cdfFilename, CDF_PATHNAME_LEN, "%s/themis_%s_camera_pointing_errors_%s_%s_%s", state->exportdir, state->site, firstTime, lastTime, EXPORT_CDF_VERSION_STRING);
-    CDFstatus cdfstatus = CDFcreateCDF(cdfFilename, &cdf);
+
+    CDFstatus cdfstatus = CDF_OK;
+    
+    snprintf(state->cdfFullFilename, CDF_PATHNAME_LEN + 5, "%s.cdf", cdfFilename);
+    if (access(state->cdfFullFilename, F_OK) == 0 && state->overwriteCdf)
+    {
+        if (state->verbose)
+            fprintf(stderr, "Overwriting CDF\n");
+        remove(state->cdfFullFilename);
+    }
+
+    cdfstatus = CDFcreateCDF(cdfFilename, &cdf);
 
     int status = ASCC_OK;
 
     if (cdfstatus != CDF_OK)
     {
-        fprintf(stderr, "Could not create CDF file.\n");
+        if (state->verbose)
+        {
+            CDFgetStatusText(cdfstatus, statusMessage);
+            fprintf(stderr, "%s\n", statusMessage);
+        }
         return ASCC_CDF_WRITE;
     }
 
@@ -412,9 +428,7 @@ int exportCdf(ProgramState *state)
         status = ASCC_CDF_WRITE;
         goto cleanup;
     }
-    char cdfFullFilename[CDF_PATHNAME_LEN + 5];
-    snprintf(cdfFullFilename, CDF_PATHNAME_LEN + 5, "%s.cdf", cdfFilename);
-    char *cdfBasename = basename(cdfFullFilename);
+    char *cdfBasename = basename(state->cdfFullFilename);
     cdfstatus = CDFputAttrgEntry(cdf, attrNum, entry, CDF_CHAR, strlen(cdfBasename), cdfBasename);
     if (cdfstatus != CDF_OK)
     {
@@ -570,7 +584,7 @@ cleanup:
     if (cdf != NULL)
         CDFclose(cdf);
 
-    if (cdfstatus != CDF_OK)
+    if (cdfstatus != CDF_OK && state->verbose)
     {
         CDFgetStatusText(cdfstatus, statusMessage);
         fprintf(stderr, "export.c: %s\n", statusMessage);

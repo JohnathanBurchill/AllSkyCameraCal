@@ -26,6 +26,7 @@
 #include <stdlib.h>
 #include <stdint.h>
 #include <stdio.h>
+#include <cdf.h>
 
 #define EXPORT_CDF_VERSION_STRING "0001"
 
@@ -61,6 +62,7 @@ enum ASCC_STATUS
 typedef struct ProgramState
 {
     bool verbose;
+    bool showOptions;
 
     char *site;
     char *firstCalDateString;
@@ -84,6 +86,8 @@ typedef struct ProgramState
     int32_t bytesPerStarEntry;
 
     char *exportdir;
+    char cdfFullFilename[CDF_PATHNAME_LEN + 5];
+    bool overwriteCdf;
 
     char *l1dir;
     char **l1filenames;
@@ -131,7 +135,7 @@ typedef struct ProgramState
 
 } ProgramState;
 
-void usage(char *name);
+void usage(ProgramState *state, char *name);
 void aboutASCC(void);
 
 #endif // _MAIN_H

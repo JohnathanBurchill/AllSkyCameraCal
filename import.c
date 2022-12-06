@@ -171,8 +171,8 @@ int loadThemisLevel2(ProgramState *state)
                     }
                 }
             }
-
-            // printf("Site location (%s): %.3fN %.3fE, altitude %.0f m\n", state->site, state->siteLatitudeGeodetic, state->siteLongitudeGeodetic, state->siteAltitudeMetres);
+            if (state->verbose)
+                fprintf(stderr, "Site location (%s): %.3fN %.3fE, altitude %.0f m\n", state->site, state->siteLatitudeGeodetic, state->siteLongitudeGeodetic, state->siteAltitudeMetres);
 
             status = ASCC_OK;
             break;
@@ -358,16 +358,6 @@ int loadStars(ProgramState *state)
     // Sort from brightest to dimmest
     qsort(state->starData, nStars, sizeof(Star), &sortStars);
 
-    // printf("nStars: %d\n", nStars);
-    // for (int i = 0; i < nStars; i++)
-    // {
-    //     s = &state->starData[i];
-    //     printf("%f %.4f %.10f %.10f\n", s->catalogNumber, s->declinationRadian / M_PI * 180., s->raProperMotionRadianPerYear, s->decProperMotionRadianPerYear);
-    // }
-    // exit(0);
-
-    // for (int i = 0; i < nStars; i++)
-    //     printf("Magnitude: %.2f, RA %.3f DEC %.3f\n", state->starData[i].visualMagnitudeTimes100/100.0, state->starData[i].rightAscensionRadian / M_PI*180.0, state->starData[i].declinationRadian / M_PI * 180.0);
 
 cleanup:
     fclose(starFile);
@@ -427,7 +417,11 @@ int loadSkymap(ProgramState *state)
         // TODO sort FTS listings to get lastest L2 version first
         FTS *fts = fts_open(dir, FTS_LOGICAL, NULL);
         if (fts == NULL)
+        {
+            if (state->verbose)
+                fprintf(stderr, "Unable to read skymap directory %s.\n", state->skymapdir);
             return ASCC_L2_FILE;
+        }
 
         FTSENT *e = fts_read(fts);
 
@@ -454,7 +448,11 @@ int loadSkymap(ProgramState *state)
     }
 
     if (state->skymapfilename == NULL)
+    {
+        if (state->verbose)
+            fprintf(stderr, "Unable to find skymap file.\n");
         return ASCC_SKYMAP_FILE;
+    }
 
     status = loadSkymapFromFile(state);
 
@@ -473,8 +471,11 @@ int loadSkymapFromFile(ProgramState *state)
 
     status = readSave(state->skymapfilename, &fileInfo, &variables);
     if (status != READSAVE_OK)
+    {
+        if (state->verbose)
+            fprintf(stderr, "Error reading skymap file %s.\n", state->skymapfilename);
         return ASCC_SKYMAP_FILE;
-
+    }
     Variable *var = NULL;
     Variable *selectedVar = NULL;
 
@@ -482,15 +483,43 @@ int loadSkymapFromFile(ProgramState *state)
     uint16_t *pointeru16 = NULL;
     void *mem = NULL;
 
+    Variable *data = NULL;
+    Variable *v = NULL;
+
     // Expecting 1 variable with format the same as "themis_skymap_rank_20130107-+_vXX.sav"
-    var = &variables.variableList[0];
-    state->siteLatitudeGeodetic  = *(float*)(variableData(&((Variable*)var->data)[0], "skymap.site_map_latitude")->data);
-    state->siteLongitudeGeodetic  = *(float*)(variableData(&((Variable*)var->data)[0], "skymap.site_map_longitude")->data);
-    state->siteAltitudeMetres  = *(float*)(variableData(&((Variable*)var->data)[0], "skymap.site_map_altitude")->data);
-    state->calibrationDateGenerated = strdup((char*)(variableData(&((Variable*)var->data)[0], "skymap.generation_info.date_generated")->data));
+    var = variables.variableList;
+    if (var == NULL)
+        return ASCC_SKYMAP_FILE;
+    data = ((Variable*)var->data);
+    if (data == NULL)
+        return ASCC_SKYMAP_FILE;
+
+    v = variableData(data, "skymap.site_map_latitude");
+    if (v == NULL)
+        return ASCC_SKYMAP_FILE;
+    state->siteLatitudeGeodetic  = *(float*)(v->data);
+
+    v = variableData(data, "skymap.site_map_longitude");
+    if (v == NULL)
+        return ASCC_SKYMAP_FILE;
+    state->siteLongitudeGeodetic  = *(float*)(v->data);
+
+    v = variableData(data, "skymap.site_map_altitude");
+    if (v == NULL)
+        return ASCC_SKYMAP_FILE;
+    state->siteAltitudeMetres  = *(float*)(v->data);
+
+    v = variableData(data, "skymap.generation_info.date_generated");
+    if (v == NULL)
+        return ASCC_SKYMAP_FILE;
+    state->calibrationDateGenerated  = strdup((char*)v->data);
     if (state->calibrationDateGenerated == NULL)
         return ASCC_MEM;
-    state->calibrationDateUsed = strdup((char*)(variableData(&((Variable*)var->data)[0], "skymap.generation_info.date_used")->data));
+
+    v = variableData(data, "skymap.generation_info.date_time_used");
+    if (v == NULL)
+        return ASCC_SKYMAP_FILE;
+    state->calibrationDateUsed  = strdup((char*)v->data);
     if (state->calibrationDateUsed == NULL)
         return ASCC_MEM;
 
@@ -498,15 +527,21 @@ int loadSkymapFromFile(ProgramState *state)
         return ASCC_SKYMAP_FILE;
 
     pointer = &state->cameraElevations[0][0];
-    mem = variableData(&((Variable*)var->data)[0], "skymap.full_elevation")->data;
+    mem = variableData(data, "skymap.full_elevation")->data;
+    if (mem == NULL)
+        return ASCC_SKYMAP_FILE;
     memcpy(pointer, mem, IMAGE_COLUMNS * IMAGE_ROWS * sizeof(float));
 
     pointer = &state->cameraAzimuths[0][0];
-    mem = variableData(&((Variable*)var->data)[0], "skymap.full_azimuth")->data;
+    mem = variableData(data, "skymap.full_azimuth")->data;
+    if (mem == NULL)
+        return ASCC_SKYMAP_FILE;
     memcpy(pointer, mem, IMAGE_COLUMNS * IMAGE_ROWS * sizeof(float));
 
     pointeru16 = &state->sitePixelOffsets[0][0];
-    mem = variableData(&((Variable*)var->data)[0], "skymap.full_subtract")->data;
+    mem = variableData(data, "skymap.full_subtract")->data;
+    if (mem == NULL)
+        return ASCC_SKYMAP_FILE;
     memcpy(pointeru16, mem, IMAGE_COLUMNS * IMAGE_ROWS * sizeof(uint16_t));
 
     float tmp = 0.0;

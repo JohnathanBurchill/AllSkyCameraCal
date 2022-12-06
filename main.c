@@ -58,7 +58,13 @@ int main(int argc, char **argv)
     {
         if (strcmp(argv[i], "--help") == 0)
         {
-            usage(argv[0]);
+            usage(&state, argv[0]);
+            return EXIT_SUCCESS;
+        }
+        if (strcmp(argv[i], "--help-options") == 0)
+        {
+            state.showOptions = true;
+            usage(&state, argv[0]);
             return EXIT_SUCCESS;
         }
         else if (strcmp(argv[i], "--about") == 0)
@@ -150,6 +156,11 @@ int main(int argc, char **argv)
             nOptions++;
             state.exportdir = argv[i]+12;
         }
+        else if (strcmp(argv[i], "--overwrite-cdf") == 0)
+        {
+            nOptions++;
+            state.overwriteCdf = true;
+        }
         else if (strcmp(argv[i], "--verbose") == 0)
         {
             nOptions++;
@@ -164,7 +175,7 @@ int main(int argc, char **argv)
 
     if (argc - nOptions != 4)
     {
-        usage(argv[0]);
+        usage(&state, argv[0]);
         return EXIT_FAILURE;
     }
 
@@ -227,30 +238,47 @@ int main(int argc, char **argv)
 
     // Read in pixel elevations and azimuths and site geodetic position from L2 file.
     if (state.skymap)
-        status = loadSkymap(&state);
-    else
-        status = loadThemisLevel2(&state);
-    if (status != ASCC_OK)
     {
-        fprintf(stderr, "Could not load calibration file.\n");
-        return status;
+        status = loadSkymap(&state);
+        if (status != ASCC_OK && state.verbose)
+        {
+            fprintf(stderr, "Could not load skymap file %s.\n", state.skymapfilename);
+            return status;
+        }
+    }
+    else
+    {
+        status = loadThemisLevel2(&state);
+        if (status != ASCC_OK && state.verbose)
+        {
+            fprintf(stderr, "Could not load THEMIS level 2 calibration file %s.\n", state.l2filename);
+            return status;
+        }
     }
 
-    printf("Estimating THEMIS %s ASI optical calibration using %s %s for level 1 imagery between %s UT and %s UT\n", state.site, state.skymap ? "SKYMAP" : "L2", state.skymap ? state.skymapfilename : state.l2filename, state.firstCalDateString, state.lastCalDateString);
+    if (state.verbose)
+        fprintf(stderr, "Estimating THEMIS %s ASI optical calibration using %s %s for level 1 imagery between %s UT and %s UT\n", state.site, state.skymap ? "SKYMAP" : "L2", state.skymap ? state.skymapfilename : state.l2filename, state.firstCalDateString, state.lastCalDateString);
 
     // Read in the star catalog (BCS5) sorted by right ascension (BCS5ra)
     status = loadStars(&state);
     if (status != ASCC_OK)
     {
-        fprintf(stderr, "Could not load star catalog file.\n");
+        if (state.verbose)
+            fprintf(stderr, "Could not load star catalog file.\n");
         goto cleanup;
     }
     if (state.nStars > 0)
     {
-        fprintf(stderr, "Expected J2000 format for star entries, got B1950.\n");
+        if (state.verbose)
+            fprintf(stderr, "Expected J2000 format for star entries, got B1950.\n");
         goto cleanup;
     }
     state.nStars = -state.nStars;
+
+    if (state.verbose)
+    {
+        fprintf(stderr, "Read %d stars from BSC5ra database in %s\n", state.nStars, state.stardir);
+    }
 
     // Don't need L2 pixel directions.
         // Need only an approximate starting point to locate stars
@@ -327,8 +355,21 @@ int main(int argc, char **argv)
 
     state.processingStopEpoch = currentEpoch();
 
+    if (state.verbose)
+        fprintf(stderr, "Processed %lu images.\n", state.expectedNumberOfImages);
+
     // Export error DCMs to CDF file
-    exportCdf(&state);
+    status = exportCdf(&state);
+    
+    if (state.verbose)
+    {
+        if (status != ASCC_OK)
+            fprintf(stderr, "Could not create the CDF.\n");
+        else
+            fprintf(stderr, "Created %s\n", state.cdfFullFilename);
+
+    }
+
 
 cleanup:
 
@@ -354,30 +395,34 @@ cleanup:
     return status;
 }
 
-void usage(char *name)
+void usage(ProgramState *state, char *name)
 {
-    printf("Estimates new THEMIS ASI elevation and azimuth errors for <site> using suitable ASI images from <firstCalDate> to <lastCalDate>.\n");
-    printf("\nUsage: %s <site> <firstCalDate> <lastCalDate> [--exportdir=<dir>] [--l1dir=<dir>] [--l2dir=<dir>] [--skymap=<file>] [--use-skymap] [--skymapdir=<dir>] [--stardir=<star>] [--number-of-calibration-stars=N] [--star-search-box-width=<widthInPixels>] [--star-max-jitter-pixels=<value>] [--exportdir=<dir>] [--print-star-info] [--show-progress] [--help] [--usage]\n", name);
+    printf("Usage: %s <site> <firstCalDate> <lastCalDate> [options] [--help] [--help-options]\n", name);
+    printf("\nEstimate THEMIS ASI elevation and azimuth errors for <site> from <firstCalDate> to <lastCalDate>.\n");
     printf("\n<site> is a 4-letter THEMIS site abbreviation, lowercase (e.g., rank).\n");
     printf("\nDates have the form yyyy-mm-ddTHH:MM:SS.sss interpreted as universal times without leap seconds (THEMIS time).\n");
-    printf("\nOptions:\n");
-
-    printOptMsg("--exportdir=<dir>", "sets the directory to export the results to. Defaults to \".\".");
-    printOptMsg("--l1dir=<dir>", "sets the directory containing THEMIS level 1 (ASI) files. Defaults to \".\". Only one version of each L1 file can be in this directory.");
-    printOptMsg("--l2dir=<dir>", "sets the directory containing THEMIS level 2 (calibration) files. Defaults to \".\".");
-    printOptMsg("--stardir=<dir>", "sets the directory containing the Yale Bright Star Catalog file (BSC5ra). Defaults to \".\".");
-    printOptMsg("--skymap", "use the IDL skymap file instead of the themis L2 calibration file.");
-    printOptMsg("--skymapdir=<dir>", "sets the directory containing the IDL skymap files. Defaults to \".\".");
-    printOptMsg("--skymap=<file>", "use a specific IDK skymap file.");
-    printOptMsg("--number-of-calibration-stars=N", "sets the number of calibration stars. Defaults to " STR(N_CALIBRATION_STARS) ".");
-    printOptMsg("--star-search-box-width=N", "sets the width of the calibration star search box. Defaults to " STR(STAR_SEARCH_BOX_WIDTH) ".");
-    printOptMsg("--star-max-jitter-pixels=<value>", "sets the maximum change in star image position from previous image to be included in error estimation. Defaults to " STR(STAR_MAX_PIXEL_JITTER) ".");
-    printOptMsg("--print-star-info", "prints calibration star information for each image.");
-    printOptMsg("--show-progress", "show image processing progress.");
-    printOptMsg("--exportdir=<dir>", "sets the directory for the exported calibration CDF.");
-    printOptMsg("--verbose", "prints more information during processing.");
-    printOptMsg("--help", "prints this message.");
-    printOptMsg("--about", "prints author name and license.");
+    if (state->showOptions)
+    {
+        printf("\nOptions:\n");
+        printOptMsg("--exportdir=<dir>", "sets the directory to export the results to. Defaults to \".\".");
+        printOptMsg("--l1dir=<dir>", "sets the directory containing THEMIS level 1 (ASI) files. Defaults to \".\". Only one version of each L1 file can be in this directory.");
+        printOptMsg("--l2dir=<dir>", "sets the directory containing THEMIS level 2 (calibration) files. Defaults to \".\".");
+        printOptMsg("--stardir=<dir>", "sets the directory containing the Yale Bright Star Catalog file (BSC5ra). Defaults to \".\".");
+        printOptMsg("--skymap", "use an IDL skymap file instead of a THEMIS L2 calibration file.");
+        printOptMsg("--skymapdir=<dir>", "sets the directory containing the IDL skymap files. Defaults to \".\".");
+        printOptMsg("--skymap=<file>", "use a specific IDL skymap file.");
+        printOptMsg("--number-of-calibration-stars=N", "set the number of calibration stars. Defaults to " STR(N_CALIBRATION_STARS) ".");
+        printOptMsg("--star-search-box-width=N", "set the width of the calibration star search box. Defaults to " STR(STAR_SEARCH_BOX_WIDTH) ".");
+        printOptMsg("--star-max-jitter-pixels=<value>", "set the maximum change in star image position from previous image to be included in error estimation. Defaults to " STR(STAR_MAX_PIXEL_JITTER) ".");
+        printOptMsg("--print-star-info", "print calibration star information for each image.");
+        printOptMsg("--show-progress", "show image processing progress.");
+        printOptMsg("--exportdir=<dir>", "set the directory for the exported calibration CDF.");
+        printOptMsg("--overwrite-cdf", "overwrite the target CDF if it exists.");
+        printOptMsg("--verbose", "print more information during processing.");
+        printOptMsg("--help", "show how to run this program.");
+        printOptMsg("--help-options", "show program options.");
+        printOptMsg("--about", "print author name and license.");
+    }
 
     return;
 }
