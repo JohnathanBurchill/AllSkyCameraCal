@@ -21,23 +21,20 @@ FROM johnathanburchill/utils:cdev AS asccdev
 USER root
 COPY --from=readsave /readsave.h /usr/local/include/.
 COPY --from=readsave /libredsafe.a /usr/local/lib/.
+COPY --from=readsave /readsave /usr/local/bin/.
 RUN ldconfig
+WORKDIR /home/science
 USER science
-VOLUME ["/home/science/"]
 ENTRYPOINT ["/bin/bash"]
 
 FROM asccdev AS asccbuild
-USER root
-RUN mkdir /home/science/build
 WORKDIR /home/science/build
 RUN git clone https://github.com/JohnathanBurchill/AllSkyCameraCal
-WORKDIR AllSkyCameraCal
-RUN mkdir build
-WORKDIR build
+WORKDIR AllSkyCameraCal/build
 RUN cmake ..
 RUN make 
 
 FROM scratch AS deploy
-COPY from=asccbuild /home/science/build/AllSkyCameraCal/build/allskycameracal /.
+COPY --from=asccbuild /home/science/build/AllSkyCameraCal/build/allskycameracal /.
 ENTRYPOINT ["/allskycameracal"]
 

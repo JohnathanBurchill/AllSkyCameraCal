@@ -18,5 +18,5 @@
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 
-docker build --target deploy -t johnathanburchill/allskycameracal:latest --no-cache .
+docker build --target asccbuild -t asccbuild --no-cache .
 
