@@ -431,7 +431,7 @@ void aboutASCC(void)
 {
 
     printf("allskycameracal. Copyright (C) 2022 Johnathan K. Burchill.\n");
-    printf(" Revises the level 2 calibration for THEMIS ASI pixel elevations and azimuths using level 1 imagery and the Yale Bright Star Catalog BSC5.\n");
+    printf("\nEstimates errors in THEMIS ASI pixel elevations and azimuths using level 1 imagery and the Yale Bright Star Catalog BSC5.\n");
     printf("\n");
     printf("This program comes with ABSOLUTELY NO WARRANTY.\n");
     printf("This is free software, and you are welcome to redistribute it\n");
