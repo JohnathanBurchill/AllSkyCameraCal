@@ -23,4 +23,6 @@
 
 double currentEpoch(void);
 
+void printOptMsg(char *option, char *message);
+
 #endif // _UTIL_H

@@ -32,6 +32,9 @@
 
 #include <cdf.h>
 
+#define QT(x) #x
+#define STR(macro) QT(macro)
+
 int main(int argc, char **argv)
 {
 
@@ -146,6 +149,11 @@ int main(int argc, char **argv)
         {
             nOptions++;
             state.exportdir = argv[i]+12;
+        }
+        else if (strcmp(argv[i], "--verbose") == 0)
+        {
+            nOptions++;
+            state.verbose = true;
         }
         else if (strncmp(argv[i], "--", 2) == 0)
         {
@@ -346,27 +354,30 @@ cleanup:
     return status;
 }
 
-
 void usage(char *name)
 {
-    printf("Usage: %s <site> <firstCalDate> <lastCalDate> [--exportdir=<dir>] [--l1dir=<dir>] [--l2dir=<dir>] [--skymap=<file>] [--use-skymap] [--skymapdir=<dir>] [--stardir=<star>] [--number-of-calibration-stars=N] [--star-search-box-width=<widthInPixels>] [--star-max-jitter-pixels=<value>] [--exportdir=<dir>] [--print-star-info] [--show-progress] [--help] [--usage]\n", name);
-    printf(" estimates new THEMIS ASI elevation and azimuth map for <site> using suitable ASI images from <firstCalDate> to <lastCalDate>.\n");
-    printf(" Dates have the form yyyy-mm-ddTHH:MM:SS.sss interpreted as universal times.\n");
-    printf("%20s : sets the directory to export the results to. Defaults to \".\".\n", "--exportdir=<dir>");
-    printf("%20s : sets the directory containing THEMIS level 1 (ASI) files. Defaults to \".\". Only one version of each L1 file can be in this directory.\n", "--l1dir=<dir>");
-    printf("%20s : sets the directory containing THEMIS level 2 (calibration) files. Defaults to \".\".\n", "--l2dir=<dir>");
-    printf("%20s : sets the directory containing the Yale Bright Star Catalog file (BSC5ra). Defaults to \".\".\n", "--stardir=<dir>");
-    printf("%20s : use the IDL skymap file instead of the themis L2 calibration file.\n", "--skymap");
-    printf("%20s : sets the directory containing the IDL skymap files. Defaults to \".\".\n", "--skymapdir=<dir>");
-    printf("%20s : use a specific IDK skymap file.\n", "--skymap=<file>");
-    printf("%20s : sets the number of calibration stars. Defaults to %d.\n", "--number-of-calibration-stars=N", N_CALIBRATION_STARS);
-    printf("%20s : sets the width of the calibration star search box. Defaults to %d.\n", "--star-search-box-width=N", STAR_SEARCH_BOX_WIDTH);
-    printf("%20s : sets the maximum change in star image position from previous image to be included in error estimation. Defaults to %.1f.\n", "--star-max-jitter-pixels=<value>", STAR_MAX_PIXEL_JITTER);
-    printf("%20s : prints calibration star information for each image.\n", "--print-star-info");
-    printf("%20s : show image processing progress.\n", "--show-progress");
-    printf("%20s : sets the directory for the exported calibration CDF.\n", "--exportdir=<dir>");
-    printf("%20s : prints this message.\n", "--help");
-    printf("%20s : prints author name and license.\n", "--about");
+    printf("Estimates new THEMIS ASI elevation and azimuth errors for <site> using suitable ASI images from <firstCalDate> to <lastCalDate>.\n");
+    printf("\nUsage: %s <site> <firstCalDate> <lastCalDate> [--exportdir=<dir>] [--l1dir=<dir>] [--l2dir=<dir>] [--skymap=<file>] [--use-skymap] [--skymapdir=<dir>] [--stardir=<star>] [--number-of-calibration-stars=N] [--star-search-box-width=<widthInPixels>] [--star-max-jitter-pixels=<value>] [--exportdir=<dir>] [--print-star-info] [--show-progress] [--help] [--usage]\n", name);
+    printf("\n<site> is a 4-letter THEMIS site abbreviation, lowercase (e.g., rank).\n");
+    printf("\nDates have the form yyyy-mm-ddTHH:MM:SS.sss interpreted as universal times without leap seconds (THEMIS time).\n");
+    printf("\nOptions:\n");
+
+    printOptMsg("--exportdir=<dir>", "sets the directory to export the results to. Defaults to \".\".");
+    printOptMsg("--l1dir=<dir>", "sets the directory containing THEMIS level 1 (ASI) files. Defaults to \".\". Only one version of each L1 file can be in this directory.");
+    printOptMsg("--l2dir=<dir>", "sets the directory containing THEMIS level 2 (calibration) files. Defaults to \".\".");
+    printOptMsg("--stardir=<dir>", "sets the directory containing the Yale Bright Star Catalog file (BSC5ra). Defaults to \".\".");
+    printOptMsg("--skymap", "use the IDL skymap file instead of the themis L2 calibration file.");
+    printOptMsg("--skymapdir=<dir>", "sets the directory containing the IDL skymap files. Defaults to \".\".");
+    printOptMsg("--skymap=<file>", "use a specific IDK skymap file.");
+    printOptMsg("--number-of-calibration-stars=N", "sets the number of calibration stars. Defaults to " STR(N_CALIBRATION_STARS) ".");
+    printOptMsg("--star-search-box-width=N", "sets the width of the calibration star search box. Defaults to " STR(STAR_SEARCH_BOX_WIDTH) ".");
+    printOptMsg("--star-max-jitter-pixels=<value>", "sets the maximum change in star image position from previous image to be included in error estimation. Defaults to " STR(STAR_MAX_PIXEL_JITTER) ".");
+    printOptMsg("--print-star-info", "prints calibration star information for each image.");
+    printOptMsg("--show-progress", "show image processing progress.");
+    printOptMsg("--exportdir=<dir>", "sets the directory for the exported calibration CDF.");
+    printOptMsg("--verbose", "prints more information during processing.");
+    printOptMsg("--help", "prints this message.");
+    printOptMsg("--about", "prints author name and license.");
 
     return;
 }

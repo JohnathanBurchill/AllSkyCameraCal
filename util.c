@@ -20,6 +20,9 @@
 
 #include "util.h"
 
+#include <stdbool.h>
+#include <stdio.h>
+#include <string.h>
 #include <time.h>
 
 #include <cdf.h>
@@ -30,4 +33,41 @@ double currentEpoch(void)
     double unixTime = (double) time(NULL);
     UnixTimetoEPOCH(&unixTime, &epoch, 1);
     return epoch;
+}
+
+void printOptMsg(char *option, char *message)
+{
+    size_t n = strlen(option);
+    size_t m = strlen(message);
+    printf("%35s", option);
+    if (n > 35)
+        printf("\n%35s", "");
+    printf(" : ");
+    if (m <= 80)
+        printf("%s", message);
+    else
+    {
+        bool breakNextSpace = false;
+        for (size_t i = 0; i < m; i++)
+        {
+            if ((i % 80) == 79)
+                breakNextSpace = true;
+
+            if (breakNextSpace == true)
+            {
+                if (*(message + i) == ' ')
+                {
+                    printf("\n%35s   ", "");
+                    breakNextSpace = false;
+                }
+                else
+                    putchar(*(message + i));                    
+            }
+            else
+                putchar(*(message + i));                    
+        }
+    }    
+    printf("\n");
+
+    return;
 }

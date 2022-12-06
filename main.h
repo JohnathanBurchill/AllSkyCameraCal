@@ -25,6 +25,7 @@
 
 #include <stdlib.h>
 #include <stdint.h>
+#include <stdio.h>
 
 #define EXPORT_CDF_VERSION_STRING "0001"
 
@@ -59,6 +60,8 @@ enum ASCC_STATUS
 
 typedef struct ProgramState
 {
+    bool verbose;
+
     char *site;
     char *firstCalDateString;
     char *lastCalDateString;
