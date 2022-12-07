@@ -84,8 +84,23 @@ int sortL1Listing(const FTSENT **first, const FTSENT **second)
 
 int analyzeImagery(ProgramState *state)
 {
+
     if (state == NULL)
         return ASCC_ARGUMENTS;
+
+
+    // For each image
+
+        // Get the universal time (this is without leap seconds)
+        // Find N-brightest stars above some threshold elevation
+        // Get their expected elevation and azimuth and find the 
+        // closest pixel using the reference calibration
+        // Estimate actual star position in image within a neighbourhood
+        // of that pixel.
+    
+        // This method relies on the camera orientation being very close to the 
+        // original camera orientation.
+
 
     int status = ASCC_OK;
 
@@ -128,10 +143,7 @@ int analyzeImagery(ProgramState *state)
         fileStartEpoch = epochFromL1Filename(e->fts_name);
         fileStopEpoch = fileStartEpoch + 3600000; // one hour: L1 files cover 1 hour intervals
         if (fileStartEpoch != ILLEGAL_EPOCH_VALUE && !((fileStartEpoch < t1 && fileStopEpoch <= t1) || (fileStartEpoch >= t2 && fileStopEpoch > t2)))
-        {
-            // printf("Analyzing images in %s\n", e->fts_name);
             analyzeL1FileImages(state, fts->fts_path);
-        }
 
         e = fts_read(fts);
     }
@@ -215,8 +227,6 @@ int analyzeL1FileImages(ProgramState *state, char *l1file)
     }
 
     nFileImages = maxFileRecord + 1;
-    // printf("file records: %ld\n", nFileImages);
-
 
     size_t startImage = state->nImages;
     size_t imageCounter = startImage;
@@ -296,9 +306,6 @@ int analyzeL1FileImages(ProgramState *state, char *l1file)
 
     int boxHalfWidth = state->starSearchBoxWidth / 2;
 
-    // printf("El minmax: %.2f %.2f\n", state->minElevation, state->maxElevation);
-    // printf("Az minmax: %.2f %.2f\n", state->minAzimuth, state->maxAzimuth);
-
     // For rotation matrix estimation
     double cArr[9] = {0.0};
     double vArr[9] = {0.0};
@@ -326,18 +333,14 @@ int analyzeL1FileImages(ProgramState *state, char *l1file)
     for (long ind = 0; ind < nFileImages; ind++)
     {
         index = ind;
-        // printf("%s: i = %ld, nImageFiles: %ld\n", l1file, ind, nFileImages);
         snprintf(cdfVarName, CDF_VAR_NAME_LEN + 1, "thg_asf_%s_epoch", state->site);
-        // printf("index: %ld\n", index);
         cdfStatus = CDFgetVarRangeRecordsByVarName(cdf, cdfVarName, index, index, &imageTime);
         if (cdfStatus != CDF_OK)
             continue;
         if (imageTime < state->firstCalTime || imageTime > state->lastCalTime)
             continue;
-        // printf("%ld: %lf\n", imageCounter, imageTime);
         state->imageTimes[imageCounter] = imageTime;
         encodeEPOCH4(imageTime, timeString);
-        // printf("Analyzing image at %s\n", timeString);
 
         // Assume sensible file validation - same number of images as epochs
         snprintf(cdfVarName, CDF_VAR_NAME_LEN + 1, "thg_asf_%s", state->site);
@@ -352,14 +355,10 @@ int analyzeL1FileImages(ProgramState *state, char *l1file)
                     imagery[c][r] -= state->sitePixelOffsets[c][r];
                 else
                     imagery[c][r] = 0;
-                // printf("%d,%d: %d\n", c, r, imagery[c][r]);
             }
 
         nCalStars = selectStars(state, imageTime, calStars);
 
-        // printf("Got %d calibration stars.\n", nCalStars);
-        // for (int i = 0; i < nCalStars; i++)
-        //     printf("star %d (ind %ld): magnitude = %.2lf\n", i, calStarInds[i], state->starData[calStarInds[i]].visualMagnitudeTimes100/100.0);
         nCalStarsKept = 0;
 
         float azelX = 0.0;
@@ -416,15 +415,13 @@ int analyzeL1FileImages(ProgramState *state, char *l1file)
 
                 if (momentCounter > 0 && cal->meanImageSignalAboveThreshold > 0.0)
                 {
-                    // printf("momentCounter: %d\n", momentCounter);
-
                     nCalStarsKept++;
                     cal->includeInCalibration = true;
                     // Calculate dRa and dDec from measuremed (interpolated) values minus predicted values
                     dx = cal->predictedAzElX - cal->measuredAzElX;
                     dy = cal->predictedAzElY - cal->measuredAzElY;
                     dz = cal->predictedAzElZ - cal->measuredAzElZ;
-                    // printf("dx,dy,dz = %f %f %f\n", dx, dy, dz);
+
                     cal->measuredAz = 90.0 - atan2(cal->measuredAzElY, cal->measuredAzElX) / M_PI * 180.0;
                     cal->measuredEl = atan(cal->measuredAzElZ / hypotf(cal->measuredAzElX, cal->measuredAzElY)) / M_PI * 180.0;
 
@@ -453,17 +450,6 @@ int analyzeL1FileImages(ProgramState *state, char *l1file)
                 }
             }
         }
-        // If enough cal stars,
-        // Find zenith from centre of rotation
-        //  model rotation angle as function of time and least-squares fit rotation centre?
-        // Rotate look direction to align zenith
-        // Calculate angular displacements about zenith
-        // Rotate around zenith
-        // Collect information about quality of solution
-
-        // Or, can always just rotate about centre of CCD image?
-        // CCD center is given in L2 file? No. Just in idlsav SKYMAP files
-        // Iterating rotations about middle of image might work
         if (nCalStarsKept >= MIN_N_CALIBRATION_STARS_PER_IMAGE)
         {
             int statCounter = 0;
@@ -585,10 +571,6 @@ int analyzeL1FileImages(ProgramState *state, char *l1file)
                 cal = &calStars[i];
                 if (cal->includeInCalibration && statCounter > 0)
                 {
-                    // TODO update the pixel azimuths and elevations by adding the dAzs and dEls?
-                    // and store all info in a CDF
-                    // Looks like the AZ / EL map needs to be rotated and translated,
-                    // not just translated.
                     printf("%lf %ld %ld %.3f %.3f %.3f %.4f %.4f %.4f %.4f %.4f %.4f %.4f %.4f %.9lf %.9lf %.9lf %.9lf %.9lf %.9lf %.9lf %.9lf %.9lf %.6lf %.6lf %.6lf %.6lf\n", imageTime, cal->predictedImageColumn, cal->predictedImageRow, cal->imageMomentColumn, cal->imageMomentRow, cal->magnitude, cal->predictedAz, cal->predictedEl, cal->measuredAz, cal->measuredEl, cal->deltaAz / M_PI * 180.0, cal->deltaEl / M_PI * 180.0, statAz / M_PI * 180.0, statEl / M_PI * 180.0, dcmArr[0], dcmArr[1], dcmArr[2], dcmArr[3], dcmArr[4], dcmArr[5], dcmArr[6], dcmArr[7], dcmArr[8], rotationVectorArr[0], rotationVectorArr[1], rotationVectorArr[2], rotationAngle);
                 }
                 else
@@ -743,8 +725,6 @@ int radecToazel(double time, float geodeticLatitudeDeg, float longitudeDeg, floa
     northy /= mag;
     northz /= mag;
 
-    // printf("x: %.2f y: %.2f z: %.2f\n", x0, y0, z0);
-
     // Now have a coordinate system local east, north, up (geodetic up)
     // represented in X, Y, Z (ECEF) coodinates.
     // They share the same origin.
@@ -832,8 +812,6 @@ int azelToradec(double time, float geodeticLatitudeDeg, float longitudeDeg, floa
     northy /= mag;
     northz /= mag;
 
-    // printf("x: %.2f y: %.2f z: %.2f\n", x0, y0, z0);
-
     // Now have a coordinate system local east, north, up (geodetic up)
     // represented in X, Y, Z (ECEF) coodinates.
     // They share the same origin.
@@ -863,7 +841,6 @@ int azelToradec(double time, float geodeticLatitudeDeg, float longitudeDeg, floa
     double rotationAngleRad = fmod(2.0 * M_PI * (0.7790572732640 + 1.00273781191135448 * deltat), 2.0 * M_PI);
     double raVal1 = raVal + rotationAngleRad;
     raVal1 = fmod(raVal1, 2.0 * M_PI);
-    // printf("raVal modded: %lf %lf\n", raVal / M_PI * 180.0, raVal1 / M_PI * 180.0);
 
     // Star catalog RA and DEC are int radian, return values in these units
     if (ra != NULL)
@@ -903,8 +880,6 @@ void geodeticToXYZ(float glat, float glon, float altm, float *x, float *y, float
     double z1 = (s1 * sin(latrad) - d);
     double x1 = rho1 * cos(lonrad);
     double y1 = rho1 * sin(lonrad);
-
-    // printf("latrad: %f, lonrada: %f, rho1: %f, x1: %f, y1: %f, z1: %f\n", latrad, lonrad, rho1, x1, y1, z1);
 
     if (x != NULL)
         *x = (float)x1;
@@ -960,7 +935,6 @@ int selectStars(ProgramState *state, double imageTime, CalibrationStar *calStars
             calStars[nStars].predictedAz = starAz;
             calStars[nStars].predictedEl = starEl;
             calStars[nStars].magnitude = star->visualMagnitudeTimes100 / 100.0;
-            // TODO handle change in star ID for this image
             // Used to reject stars which have moved too much from one image to the next
             calStars[nStars].previousImageMomentColumn= calStars[nStars].imageMomentColumn;
             calStars[nStars].previousImageMomentRow = calStars[nStars].imageMomentRow;
@@ -992,7 +966,6 @@ int calculateMoments(ProgramState *state, uint16_t image[IMAGE_COLUMNS][IMAGE_RO
     float meanAzElX = 0.0;
     float meanAzElY = 0.0;
     float meanAzElZ = 0.0;
-    // printf("Threshold: %d, meanHeight: %f\n", pixelThreshold, cal->meanImageSignalAboveThreshold);
 
     for (int c = -boxHalfWidth; c <= boxHalfWidth; c++)
     {
@@ -1001,7 +974,6 @@ int calculateMoments(ProgramState *state, uint16_t image[IMAGE_COLUMNS][IMAGE_RO
 
             c0 = floorf(boxCenterColumn) + c;
             r0 = floorf(boxCenterRow) + r;
-            // printf("%d\n", image[c0][r0]);
             if (c0 >=0 && c0 < IMAGE_COLUMNS && r0 >= 0 && r0 < IMAGE_ROWS)
             {
                 pixVal = image[c0][r0];
@@ -1024,7 +996,6 @@ int calculateMoments(ProgramState *state, uint16_t image[IMAGE_COLUMNS][IMAGE_RO
     }
     if (momentCounter > 0 && boxTotal > 0)
     {
-        // printf("momC: %f\n", c1 / (float)boxTotal);
         cal->imageMomentColumn = c1 / (float)boxTotal + 0.5;
         cal->imageMomentRow = r1 / (float)boxTotal + 0.5;
         cal->measuredAzElX = meanAzElX / (float)boxTotal;

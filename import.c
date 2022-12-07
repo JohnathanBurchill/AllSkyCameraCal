@@ -76,7 +76,6 @@ int sortL2Listing(const FTSENT **first, const FTSENT **second)
 int loadThemisLevel2(ProgramState *state)
 {
     char *dir[2] = {state->l2dir, NULL};
-    // TODO sort FTS listings to get lastest L2 version first
     FTS *fts = fts_open(dir, FTS_LOGICAL, &sortL2Listing);
     if (fts == NULL)
         return ASCC_L2_FILE;
@@ -97,7 +96,6 @@ int loadThemisLevel2(ProgramState *state)
         if ((strncmp(e->fts_name, "thg_l2_asc_", 11) == 0) && (strncmp(e->fts_name + 11, state->site, 4) == 0) && strncmp(e->fts_name + e->fts_namelen - 4, ".cdf", 4) == 0)
         {
             state->l2filename = strdup(e->fts_name); // Track input files, but full path not needed.
-            // printf("Got L2 file %s\n", state->l2filename);
             cdfStatus = CDFopen(e->fts_path, &cdf);
             if (cdfStatus != CDF_OK)
             {
@@ -414,7 +412,7 @@ int loadSkymap(ProgramState *state)
     if (state->skymapfilename == NULL)
     {
         char *dir[2] = {state->skymapdir, NULL};
-        // TODO sort FTS listings to get lastest L2 version first
+        // TODO sort FTS listings to get most recent prior skymap version first
         FTS *fts = fts_open(dir, FTS_LOGICAL, NULL);
         if (fts == NULL)
         {

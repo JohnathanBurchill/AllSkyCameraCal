@@ -236,7 +236,7 @@ int main(int argc, char **argv)
 
     int status = ASCC_OK;
 
-    // Read in pixel elevations and azimuths and site geodetic position from L2 file.
+    // Read in pixel elevations and azimuths and site geodetic position from calibration file.
     if (state.skymap)
     {
         status = loadSkymap(&state);
@@ -280,75 +280,7 @@ int main(int argc, char **argv)
         fprintf(stderr, "Read %d stars from BSC5ra database in %s\n", state.nStars, state.stardir);
     }
 
-    // Don't need L2 pixel directions.
-        // Need only an approximate starting point to locate stars
-        // Like center pixel as zenith and bottom is geographic north
-        // Then calculate a new starting map of elevation and azimuth
-        // using geocentric coordinates
-        // Latitude and longitude can then be easily calculated in geocentric
-        // and magnetic field-line tracing and comparison with satellite
-        // position (all geocentric) are simpler.
-        // But it would be good to validate results against official L2
-        // calibration. So leave this as a future development?
-
-    // Estimate the L2 calibration for each time
-    // OR: get at least one star in each image and accumlate the positions with
-    // time bins of one hour, or a day or whatever, then analyze the results statistically.
-
-    // Reject calibrations that are too different from the THEMIS L2 calibration
-    // Average the calibrations to get one calibration
-
-    // Exclude any for which the moon was too high?
-    // or get the direction of the moon at that time and exclude pixels
-    // within a neighbourhood of that direction.
-    // Or just enforce a maximum signal for each "star" region.
-
-    // Perform any further image processing
-    // Exclude obvious snow and cloud?
-    // Could count the number of stars and reject images if the count is too low?
-
-    // For each image
-
-        // get the universal time
-        // Calculate the right ascension of each pixel
-        // If the first image or if the RA min-max has changed by more than 5 degrees
-            // Get stars within the min-max RA and min-max elevation of the image
-            // Sort those stars from brightest to dimmest
-        // Keep the N brightest stars, say N = 20
-    
-        // This method relies on the camera orientation being very close to the 
-        // original camera orientation. Arclengths of star displacements 
-        // no more than 5 degrees, say?
-
-        // For each calibration star
-        // Defining two concentric rings in arc-length about 
-        // each star labeled R1 and R2
-        // the first ring being a disk and the second an adjacent annulus,        
-            // get the mean pixel count within R2 as a background estimate
-            // subtract this from the pixel values within R1 and calculate the
-            // first moment and total signal in R1
-            // If the total signal in R1 is too small, reject this star.
-
-        // Continue to the next L1 image if there are not enough calibration stars
-
-        // The remaining moments are the "actual" star positions
-
-        // Calculate the mean arc length of the displacements 
-        // "expected star positions" minus "estimated star positions from first moments"
-        // If this is too large, continue to the next image
-
-        // Iterate to an estimate of the new pixel elevation and right ascension map
-
-        // If that worked, calculate the new azimuths from the new right ascensions and the time
-
-    // If the number of estimated calibrations is too few, fail the overall calbration.
-
-    // Calculate the median (or mean?) and standard deviation of the arc lengths of the 
-    // new el-az maps minus the original L2 el-az map.
-    // If the average arc length or the standard deviation is too large, flag this
-    // Save the new L2 calibration in a CDF file.
-
-    // Loop over all L1 files between the requested calibration time.
+    // Estimate the calibration for each time
     status = analyzeImagery(&state);
     if (state.showProgress && state.expectedNumberOfImages > 0)
         fprintf(stderr, "\r\n");
