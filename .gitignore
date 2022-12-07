@@ -11,6 +11,7 @@ example
 .vscode
 .vscode-server
 .bash_history
+/**/.DS_store
 
 # Object files
 # Prerequisites
