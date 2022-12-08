@@ -310,6 +310,32 @@ int exportCdf(ProgramState *state)
         goto cleanup;
     }
 
+
+    nDims = 0;
+    cdfstatus = CDFcreatezVar(cdf, "CalibrationEpoch", CDF_EPOCH, 1, nDims, dimSizes, recVariance, dimsVariance, &varNum);
+    if (cdfstatus != CDF_OK)
+    {
+        status = ASCC_CDF_WRITE;
+        goto cleanup;
+    }
+    cdfstatus = CDFsetzVarCompression(cdf, varNum, GZIP_COMPRESSION, compressionParam);
+    if (cdfstatus != CDF_OK)
+    {
+        status = ASCC_CDF_WRITE;
+        goto cleanup;
+    }
+    cdfstatus = CDFputzVarAllRecordsByVarID(cdf, varNum, 1, &state->calibratedEpoch);
+    if (cdfstatus != CDF_OK)
+    {
+        status = ASCC_CDF_WRITE;
+        goto cleanup;
+    }
+
+    nDims = 2;
+    dimSizes[0] = IMAGE_COLUMNS;
+    dimSizes[1] = IMAGE_ROWS;
+    dimsVariance[0] = VARY;
+    dimsVariance[1] = VARY;
     cdfstatus = CDFcreatezVar(cdf, "CalibratedElevations", CDF_REAL4, 1, nDims, dimSizes, recVariance, dimsVariance, &varNum);
     if (cdfstatus != CDF_OK)
     {
@@ -563,7 +589,7 @@ int exportCdf(ProgramState *state)
         goto cleanup;
     }
 
-    cdfstatus = addVariableAttributes(cdf, "Timestamp", "CDF Epoch", "milliseconds from 0000-01-01:00:00:00 UT");
+    cdfstatus = addVariableAttributes(cdf, "Timestamp", "Epoch of image used for calibration.", "milliseconds from 0000-01-01:00:00:00 UT, no leap seconds");
     if (cdfstatus != CDF_OK)
     {
         status = ASCC_CDF_WRITE;
@@ -623,13 +649,19 @@ int exportCdf(ProgramState *state)
         status = ASCC_CDF_WRITE;
         goto cleanup;
     }
-    cdfstatus = addVariableAttributes(cdf, "ReferenceElevations", "Calibration file elevations centred on each pixel", "degree");
+    cdfstatus = addVariableAttributes(cdf, "ReferenceElevations", "Reference calibration file elevations centred on each pixel", "degree");
     if (cdfstatus != CDF_OK)
     {
         status = ASCC_CDF_WRITE;
         goto cleanup;
     }
-    cdfstatus = addVariableAttributes(cdf, "ReferenceAzimuths", "Calibration file azimuths centred on each pixel", "degree");
+    cdfstatus = addVariableAttributes(cdf, "ReferenceAzimuths", "Reference calibration file azimuths centred on each pixel", "degree");
+    if (cdfstatus != CDF_OK)
+    {
+        status = ASCC_CDF_WRITE;
+        goto cleanup;
+    }
+    cdfstatus = addVariableAttributes(cdf, "CalibrationEpoch", "Epoch of revised calibration (mean of calibration image times)", "milliseconds from 0000-01-01:00:00:00 UT, no leap seconds");
     if (cdfstatus != CDF_OK)
     {
         status = ASCC_CDF_WRITE;

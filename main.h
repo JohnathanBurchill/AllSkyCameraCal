@@ -118,6 +118,7 @@ typedef struct ProgramState
     bool calibrationUpdated;
     float calibratedElevations[IMAGE_COLUMNS][IMAGE_ROWS];
     float calibratedAzimuths[IMAGE_COLUMNS][IMAGE_ROWS];
+    double calibratedEpoch;
 
     float pixelX[IMAGE_COLUMNS][IMAGE_ROWS];
     float pixelY[IMAGE_COLUMNS][IMAGE_ROWS];

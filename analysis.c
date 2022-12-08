@@ -1165,8 +1165,11 @@ int updateCalibration(ProgramState *state)
     float *dcm = NULL;
     float degree = M_PI / 180.0;
 
+    double meanCalibrationEpoch = 0.0;
+
     for (int i = 0; i < state->nImages; i++)
     {
+        meanCalibrationEpoch += state->imageTimes[i];
         dcm = &state->pointingErrorDcms[i*9];
         for (int c = 0; c < IMAGE_COLUMNS; c++)
         {
@@ -1178,6 +1181,7 @@ int updateCalibration(ProgramState *state)
             }
         }
     }
+    meanCalibrationEpoch /= (double)state->nImages;
     for (int c = 0; c < IMAGE_COLUMNS; c++)
     {
         for (int r = 0; r < IMAGE_ROWS; r++)
@@ -1191,6 +1195,7 @@ int updateCalibration(ProgramState *state)
         }
     }
 
+    state->calibratedEpoch = meanCalibrationEpoch;
     state->calibrationUpdated = true;
 
     return status;
