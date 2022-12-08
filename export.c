@@ -318,12 +318,6 @@ int exportCdf(ProgramState *state)
         status = ASCC_CDF_WRITE;
         goto cleanup;
     }
-    cdfstatus = CDFsetzVarCompression(cdf, varNum, GZIP_COMPRESSION, compressionParam);
-    if (cdfstatus != CDF_OK)
-    {
-        status = ASCC_CDF_WRITE;
-        goto cleanup;
-    }
     cdfstatus = CDFputzVarAllRecordsByVarID(cdf, varNum, 1, &state->calibratedEpoch);
     if (cdfstatus != CDF_OK)
     {
@@ -510,6 +504,7 @@ int exportCdf(ProgramState *state)
         status = ASCC_CDF_WRITE;
         goto cleanup;
     }
+    free(command);
 
     cdfstatus = CDFcreateAttr(cdf, "Filename", GLOBAL_SCOPE, &attrNum);
     if (cdfstatus != CDF_OK)
