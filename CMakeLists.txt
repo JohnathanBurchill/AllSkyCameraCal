@@ -45,7 +45,7 @@ FIND_LIBRARY(LIBC libc.a)
 
 INCLUDE_DIRECTORIES(${INCLUDE_DIRS} ${GSL_INCLUDE_DIRS})
 
-ADD_EXECUTABLE(allskycameracal main.c import.c analysis.c export.c util.c)
+ADD_EXECUTABLE(allskycameracal main.c import.c analysis.c export.c util.c options.c info.c)
 TARGET_LINK_LIBRARIES(allskycameracal -static ${CDF} ${LIBC} ${GSLSTATIC} ${GSLBLASSTATIC} ${READSAVE} ${MATH})
 
 ADD_EXECUTABLE(testsiteimport test_site_import.c import.c)

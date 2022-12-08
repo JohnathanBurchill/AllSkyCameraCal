@@ -62,8 +62,11 @@ enum ASCC_STATUS
 
 typedef struct ProgramState
 {
+    int nOptions;
     bool verbose;
     bool showOptions;
+    bool showHelp;
+    bool showAbout;
 
     char *site;
     char *firstCalDateString;
@@ -139,8 +142,5 @@ typedef struct ProgramState
     int processingCommandLength;
 
 } ProgramState;
-
-void usage(ProgramState *state, char *name);
-void aboutASCC(void);
 
 #endif // _MAIN_H

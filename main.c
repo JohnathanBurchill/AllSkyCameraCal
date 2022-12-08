@@ -23,6 +23,8 @@
 #include "import.h"
 #include "analysis.h"
 #include "export.h"
+#include "info.h"
+#include "options.h"
 #include "util.h"
 
 #include <stdlib.h>
@@ -30,150 +32,26 @@
 #include <string.h>
 #include <unistd.h>
 
-#include <cdf.h>
-
-#define QT(x) #x
-#define STR(macro) QT(macro)
-
 int main(int argc, char **argv)
 {
+    int status = ASCC_OK;
 
     ProgramState state = {0};
-    state.processingStartEpoch = currentEpoch();
-    state.nCalibrationStars = N_CALIBRATION_STARS;
-    state.starSearchBoxWidth = STAR_SEARCH_BOX_WIDTH;
-    state.starMaxJitterPixels = STAR_MAX_PIXEL_JITTER;
-    state.exportdir = ".";
-    state.l1dir = ".";
-    state.l2dir = ".";
-    state.skymapdir = ".";
-    state.stardir = ".";
-    state.exportdir = ".";
-    state.processingCommand = argv;
-    state.processingCommandLength = argc;
-
-    int nOptions = 0;
-
-    for (int i = 0; i < argc; i++)
+    status = setOptions(&state, argc, argv);
+    if (status != ASCC_OK)
+        return EXIT_FAILURE;
+    if (state.showHelp == true || state.showOptions == true)
     {
-        if (strcmp(argv[i], "--help") == 0)
-        {
-            usage(&state, argv[0]);
-            return EXIT_SUCCESS;
-        }
-        if (strcmp(argv[i], "--help-options") == 0)
-        {
-            state.showOptions = true;
-            usage(&state, argv[0]);
-            return EXIT_SUCCESS;
-        }
-        else if (strcmp(argv[i], "--about") == 0)
-        {
-            aboutASCC();
-            return EXIT_SUCCESS;
-        }
-        else if (strncmp(argv[i], "--number-of-calibration-stars=", 30) == 0)
-        {
-            nOptions++;
-            char *errStr = NULL;
-            state.nCalibrationStars = atoi(argv[i]+30);
-            if (state.nCalibrationStars < MIN_N_CALIBRATION_STARS_PER_IMAGE)
-            {
-                fprintf(stderr, "Number of calibration stars must be at least %d.\n", MIN_N_CALIBRATION_STARS_PER_IMAGE);
-                return EXIT_FAILURE;
-            }
-        }
-        else if (strncmp(argv[i], "--star-search-box-width=", 24) == 0)
-        {
-            nOptions++;
-            char *errStr = NULL;
-            state.starSearchBoxWidth = atoi(argv[i]+24);
-            if (state.starSearchBoxWidth < MIN_STAR_SEARCH_BOX_WIDTH)
-            {
-                fprintf(stderr, "Star search box width must be at least %d pixels.\n", MIN_STAR_SEARCH_BOX_WIDTH);
-                return EXIT_FAILURE;
-            }
-        }
-        else if (strncmp(argv[i], "--star-max-jitter-pixels=", 25) == 0)
-        {
-            nOptions++;
-            char *errStr = NULL;
-            state.starMaxJitterPixels = atof(argv[i]+25);
-            if (state.starMaxJitterPixels <= 0.0)
-            {
-                fprintf(stderr, "Star search box width must be greater than 0.0 pixels.\n");
-                return EXIT_FAILURE;
-            }
-        }
-        else if (strncmp(argv[i], "--exportdir=", 12) == 0)
-        {
-            nOptions++;
-            state.exportdir = argv[i]+12;
-        }
-        else if (strncmp(argv[i], "--l1dir=", 8) == 0)
-        {
-            nOptions++;
-            state.l1dir = argv[i]+8;
-        }
-        else if (strncmp(argv[i], "--l2dir=", 8) == 0)
-        {
-            nOptions++;
-            state.l2dir = argv[i]+8;
-        }
-        else if (strncmp(argv[i], "--skymapdir=", 12) == 0)
-        {
-            nOptions++;
-            state.skymapdir = argv[i]+12;
-        }
-        else if (strncmp(argv[i], "--skymap=", 9) == 0)
-        {
-            nOptions++;
-            state.skymap = true;
-            state.skymapfilename = argv[i]+9;
-        }
-        else if (strcmp(argv[i], "--skymap") == 0)
-        {
-            nOptions++;
-            state.skymap = true;
-        }
-        else if (strncmp(argv[i], "--stardir=", 10) == 0)
-        {
-            nOptions++;
-            state.stardir = argv[i]+10;
-        }
-        else if (strcmp(argv[i], "--print-star-info") == 0)
-        {
-            nOptions++;
-            state.printStarInfo = true;
-        }
-        else if (strcmp(argv[i], "--show-progress") == 0)
-        {
-            nOptions++;
-            state.showProgress = true;
-        }
-        else if (strncmp(argv[i], "--exportdir=", 12) == 0)
-        {
-            nOptions++;
-            state.exportdir = argv[i]+12;
-        }
-        else if (strcmp(argv[i], "--overwrite-cdf") == 0)
-        {
-            nOptions++;
-            state.overwriteCdf = true;
-        }
-        else if (strcmp(argv[i], "--verbose") == 0)
-        {
-            nOptions++;
-            state.verbose = true;
-        }
-        else if (strncmp(argv[i], "--", 2) == 0)
-        {
-            fprintf(stderr, "Unknown option %s\n", argv[i]);
-            return EXIT_FAILURE;
-        }
+        usage(&state, argv[0]);
+        return EXIT_SUCCESS;
+    }
+    if (state.showAbout == true)
+    {
+        aboutASCC();
+        return EXIT_SUCCESS;
     }
 
-    if (argc - nOptions != 4)
+    if (argc - state.nOptions != 4)
     {
         usage(&state, argv[0]);
         return EXIT_FAILURE;
@@ -233,8 +111,6 @@ int main(int argc, char **argv)
             return EXIT_FAILURE;
         }
     }
-
-    int status = ASCC_OK;
 
     // Read in pixel elevations and azimuths and site geodetic position from calibration file.
     if (state.skymap)
@@ -329,48 +205,3 @@ cleanup:
     return status;
 }
 
-void usage(ProgramState *state, char *name)
-{
-    printf("Usage: %s <site> <firstCalDate> <lastCalDate> [options] [--help] [--help-options]\n", name);
-    printf("\nEstimate THEMIS ASI elevation and azimuth errors for <site> from <firstCalDate> to <lastCalDate>.\n");
-    printf("\n<site> is a 4-letter THEMIS site abbreviation, lowercase (e.g., rank).\n");
-    printf("\nDates have the form yyyy-mm-ddTHH:MM:SS.sss interpreted as universal times without leap seconds (THEMIS time).\n");
-    if (state->showOptions)
-    {
-        printf("\nOptions:\n");
-        printOptMsg("--exportdir=<dir>", "sets the directory to export the results to. Defaults to \".\".");
-        printOptMsg("--l1dir=<dir>", "sets the directory containing THEMIS level 1 (ASI) files. Defaults to \".\". Only one version of each L1 file can be in this directory.");
-        printOptMsg("--l2dir=<dir>", "sets the directory containing THEMIS level 2 (calibration) files. Defaults to \".\".");
-        printOptMsg("--stardir=<dir>", "sets the directory containing the Yale Bright Star Catalog file (BSC5ra). Defaults to \".\".");
-        printOptMsg("--skymap", "use an IDL skymap file instead of a THEMIS L2 calibration file.");
-        printOptMsg("--skymapdir=<dir>", "sets the directory containing the IDL skymap files. Defaults to \".\".");
-        printOptMsg("--skymap=<file>", "use a specific IDL skymap file.");
-        printOptMsg("--number-of-calibration-stars=N", "set the number of calibration stars. Defaults to " STR(N_CALIBRATION_STARS) ".");
-        printOptMsg("--star-search-box-width=N", "set the width of the calibration star search box. Defaults to " STR(STAR_SEARCH_BOX_WIDTH) ".");
-        printOptMsg("--star-max-jitter-pixels=<value>", "set the maximum change in star image position from previous image to be included in error estimation. Defaults to " STR(STAR_MAX_PIXEL_JITTER) ".");
-        printOptMsg("--print-star-info", "print calibration star information for each image.");
-        printOptMsg("--show-progress", "show image processing progress.");
-        printOptMsg("--exportdir=<dir>", "set the directory for the exported calibration CDF.");
-        printOptMsg("--overwrite-cdf", "overwrite the target CDF if it exists.");
-        printOptMsg("--verbose", "print more information during processing.");
-        printOptMsg("--help", "show how to run this program.");
-        printOptMsg("--help-options", "show program options.");
-        printOptMsg("--about", "print author name and license.");
-    }
-
-    return;
-}
-
-void aboutASCC(void)
-{
-
-    printf("allskycameracal. Copyright (C) 2022 Johnathan K. Burchill.\n");
-    printf("\nEstimates errors in THEMIS ASI pixel elevations and azimuths using level 1 imagery and the Yale Bright Star Catalog BSC5.\n");
-    printf("\n");
-    printf("This program comes with ABSOLUTELY NO WARRANTY.\n");
-    printf("This is free software, and you are welcome to redistribute it\n");
-    printf("under the terms of the GNU General Public License.\n");
-    printf("See the file LICENSE in the source repository for details.\n");
-
-    return;
-}
