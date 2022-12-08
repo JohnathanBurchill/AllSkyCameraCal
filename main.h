@@ -56,7 +56,8 @@ enum ASCC_STATUS
     ASCC_STAR_FILE = 7,
     ASCC_SKYMAP_FILE = 8,
     ASCC_CDF_EXPORT_NO_DATA = 9,
-    ASCC_CDF_WRITE = 10
+    ASCC_CDF_WRITE = 10,
+    ASCC_NO_CALIBRATION_DATA = 11
 };
 
 typedef struct ProgramState
@@ -107,8 +108,12 @@ typedef struct ProgramState
     float siteAltitudeMetres;
 
     uint16_t sitePixelOffsets[IMAGE_COLUMNS][IMAGE_ROWS];
-    float cameraElevations[IMAGE_COLUMNS][IMAGE_ROWS];
-    float cameraAzimuths[IMAGE_COLUMNS][IMAGE_ROWS];
+    float referenceElevations[IMAGE_COLUMNS][IMAGE_ROWS];
+    float referenceAzimuths[IMAGE_COLUMNS][IMAGE_ROWS];
+
+    bool calibrationUpdated;
+    float calibratedElevations[IMAGE_COLUMNS][IMAGE_ROWS];
+    float calibratedAzimuths[IMAGE_COLUMNS][IMAGE_ROWS];
 
     float pixelX[IMAGE_COLUMNS][IMAGE_ROWS];
     float pixelY[IMAGE_COLUMNS][IMAGE_ROWS];

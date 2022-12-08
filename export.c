@@ -61,8 +61,17 @@ int exportCdf(ProgramState *state)
 
     cdfstatus = CDFcreateCDF(cdfFilename, &cdf);
 
-    int status = ASCC_OK;
+    if (cdfstatus != CDF_OK)
+    {
+        if (state->verbose)
+        {
+            CDFgetStatusText(cdfstatus, statusMessage);
+            fprintf(stderr, "%s\n", statusMessage);
+        }
+        return ASCC_CDF_WRITE;
+    }
 
+    cdfstatus = CDFsetEncoding(cdf, NETWORK_ENCODING);
     if (cdfstatus != CDF_OK)
     {
         if (state->verbose)
@@ -75,6 +84,9 @@ int exportCdf(ProgramState *state)
 
     // TODO
     // Blocking factor
+
+
+    int status = ASCC_OK;
 
     // Timestamp
     long nDims = 0;
@@ -230,7 +242,7 @@ int exportCdf(ProgramState *state)
 
     nDims = 0;
     recVariance = VARY;
-    cdfstatus = CDFcreatezVar(cdf, "CalibrationDateGenerated", CDF_CHAR, strlen(state->calibrationDateGenerated), nDims, dimSizes, recVariance, dimsVariance, &varNum);
+    cdfstatus = CDFcreatezVar(cdf, "ReferenceDateGenerated", CDF_CHAR, strlen(state->calibrationDateGenerated), nDims, dimSizes, recVariance, dimsVariance, &varNum);
     if (cdfstatus != CDF_OK)
     {
         status = ASCC_CDF_WRITE;
@@ -243,7 +255,7 @@ int exportCdf(ProgramState *state)
         goto cleanup;
     }
 
-    cdfstatus = CDFcreatezVar(cdf, "CalibrationDateUsed", CDF_CHAR, strlen(state->calibrationDateUsed), nDims, dimSizes, recVariance, dimsVariance, &varNum);
+    cdfstatus = CDFcreatezVar(cdf, "ReferenceDateUsed", CDF_CHAR, strlen(state->calibrationDateUsed), nDims, dimSizes, recVariance, dimsVariance, &varNum);
     if (cdfstatus != CDF_OK)
     {
         status = ASCC_CDF_WRITE;
@@ -261,7 +273,7 @@ int exportCdf(ProgramState *state)
     dimSizes[1] = IMAGE_ROWS;
     dimsVariance[0] = VARY;
     dimsVariance[1] = VARY;
-    cdfstatus = CDFcreatezVar(cdf, "CalibrationElevations", CDF_REAL4, 1, nDims, dimSizes, recVariance, dimsVariance, &varNum);
+    cdfstatus = CDFcreatezVar(cdf, "ReferenceElevations", CDF_REAL4, 1, nDims, dimSizes, recVariance, dimsVariance, &varNum);
     if (cdfstatus != CDF_OK)
     {
         status = ASCC_CDF_WRITE;
@@ -273,13 +285,13 @@ int exportCdf(ProgramState *state)
         status = ASCC_CDF_WRITE;
         goto cleanup;
     }
-    cdfstatus = CDFputzVarAllRecordsByVarID(cdf, varNum, 1, state->cameraElevations);
+    cdfstatus = CDFputzVarAllRecordsByVarID(cdf, varNum, 1, state->referenceElevations);
     if (cdfstatus != CDF_OK)
     {
         status = ASCC_CDF_WRITE;
         goto cleanup;
     }
-    cdfstatus = CDFcreatezVar(cdf, "CalibrationAzimuths", CDF_REAL4, 1, nDims, dimSizes, recVariance, dimsVariance, &varNum);
+    cdfstatus = CDFcreatezVar(cdf, "ReferenceAzimuths", CDF_REAL4, 1, nDims, dimSizes, recVariance, dimsVariance, &varNum);
     if (cdfstatus != CDF_OK)
     {
         status = ASCC_CDF_WRITE;
@@ -291,7 +303,44 @@ int exportCdf(ProgramState *state)
         status = ASCC_CDF_WRITE;
         goto cleanup;
     }
-    cdfstatus = CDFputzVarAllRecordsByVarID(cdf, varNum, 1, state->cameraAzimuths);
+    cdfstatus = CDFputzVarAllRecordsByVarID(cdf, varNum, 1, state->referenceAzimuths);
+    if (cdfstatus != CDF_OK)
+    {
+        status = ASCC_CDF_WRITE;
+        goto cleanup;
+    }
+
+    cdfstatus = CDFcreatezVar(cdf, "CalibratedElevations", CDF_REAL4, 1, nDims, dimSizes, recVariance, dimsVariance, &varNum);
+    if (cdfstatus != CDF_OK)
+    {
+        status = ASCC_CDF_WRITE;
+        goto cleanup;
+    }
+    cdfstatus = CDFsetzVarCompression(cdf, varNum, GZIP_COMPRESSION, compressionParam);
+    if (cdfstatus != CDF_OK)
+    {
+        status = ASCC_CDF_WRITE;
+        goto cleanup;
+    }
+    cdfstatus = CDFputzVarAllRecordsByVarID(cdf, varNum, 1, state->calibratedElevations);
+    if (cdfstatus != CDF_OK)
+    {
+        status = ASCC_CDF_WRITE;
+        goto cleanup;
+    }
+    cdfstatus = CDFcreatezVar(cdf, "CalibratedAzimuths", CDF_REAL4, 1, nDims, dimSizes, recVariance, dimsVariance, &varNum);
+    if (cdfstatus != CDF_OK)
+    {
+        status = ASCC_CDF_WRITE;
+        goto cleanup;
+    }
+    cdfstatus = CDFsetzVarCompression(cdf, varNum, GZIP_COMPRESSION, compressionParam);
+    if (cdfstatus != CDF_OK)
+    {
+        status = ASCC_CDF_WRITE;
+        goto cleanup;
+    }
+    cdfstatus = CDFputzVarAllRecordsByVarID(cdf, varNum, 1, state->calibratedAzimuths);
     if (cdfstatus != CDF_OK)
     {
         status = ASCC_CDF_WRITE;
@@ -436,7 +485,7 @@ int exportCdf(ProgramState *state)
         goto cleanup;
     }
 
-    cdfstatus = CDFcreateAttr(cdf, "CalibrationFilename", GLOBAL_SCOPE, &attrNum);
+    cdfstatus = CDFcreateAttr(cdf, "ReferenceCalibrationFilename", GLOBAL_SCOPE, &attrNum);
     if (cdfstatus != CDF_OK)
     {
         status = ASCC_CDF_WRITE;
@@ -450,7 +499,7 @@ int exportCdf(ProgramState *state)
         goto cleanup;
     }
 
-    cdfstatus = CDFcreateAttr(cdf, "ImageFilenames", GLOBAL_SCOPE, &attrNum);
+    cdfstatus = CDFcreateAttr(cdf, "ImageryFilenames", GLOBAL_SCOPE, &attrNum);
     if (cdfstatus != CDF_OK)
     {
         status = ASCC_CDF_WRITE;
@@ -548,25 +597,37 @@ int exportCdf(ProgramState *state)
         status = ASCC_CDF_WRITE;
         goto cleanup;
     }
-    cdfstatus = addVariableAttributes(cdf, "CalibrationDateGenerated", "Date the reference calibration file was generated", "-");
+    cdfstatus = addVariableAttributes(cdf, "ReferenceDateGenerated", "Date the reference calibration file was generated", "-");
     if (cdfstatus != CDF_OK)
     {
         status = ASCC_CDF_WRITE;
         goto cleanup;
     }
-    cdfstatus = addVariableAttributes(cdf, "CalibrationDateUsed", "Date and UT of images files used for reference calibration", "-");
+    cdfstatus = addVariableAttributes(cdf, "ReferenceDateUsed", "Date and UT of images files used for reference calibration", "-");
     if (cdfstatus != CDF_OK)
     {
         status = ASCC_CDF_WRITE;
         goto cleanup;
     }
-    cdfstatus = addVariableAttributes(cdf, "CalibrationElevations", "Calibration file elevations centred on each pixel", "degree");
+    cdfstatus = addVariableAttributes(cdf, "ReferenceElevations", "Calibration file elevations centred on each pixel", "degree");
     if (cdfstatus != CDF_OK)
     {
         status = ASCC_CDF_WRITE;
         goto cleanup;
     }
-    cdfstatus = addVariableAttributes(cdf, "CalibrationAzimuths", "Calibration file azimuths centred on each pixel", "degree");
+    cdfstatus = addVariableAttributes(cdf, "ReferenceAzimuths", "Calibration file azimuths centred on each pixel", "degree");
+    if (cdfstatus != CDF_OK)
+    {
+        status = ASCC_CDF_WRITE;
+        goto cleanup;
+    }
+    cdfstatus = addVariableAttributes(cdf, "CalibratedElevations", "Revised calibration of elevations centred on each pixel", "degree");
+    if (cdfstatus != CDF_OK)
+    {
+        status = ASCC_CDF_WRITE;
+        goto cleanup;
+    }
+    cdfstatus = addVariableAttributes(cdf, "CalibratedAzimuths", "Revised calibration of azimuths centred on each pixel", "degree");
     if (cdfstatus != CDF_OK)
     {
         status = ASCC_CDF_WRITE;

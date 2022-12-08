@@ -290,6 +290,8 @@ int main(int argc, char **argv)
     if (state.verbose)
         fprintf(stderr, "Processed %lu images.\n", state.expectedNumberOfImages);
 
+    status = updateCalibration(&state);
+
     // Export error DCMs to CDF file
     status = exportCdf(&state);
     

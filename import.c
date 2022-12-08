@@ -112,12 +112,12 @@ int loadThemisLevel2(ProgramState *state)
                 break;
             }
 
-            pointer = &state->cameraElevations[0][0];
+            pointer = &state->referenceElevations[0][0];
             status = getCdfFloatArray(cdf, state->site, "thg_asf_%s_elev", 0, (void*)&pointer);
             if (status != ASCC_OK)
                 break;
 
-            pointer = &state->cameraAzimuths[0][0];
+            pointer = &state->referenceAzimuths[0][0];
             status = getCdfFloatArray(cdf, state->site, "thg_asf_%s_azim", 0, (void*)&pointer);
             if (status != ASCC_OK)
                 break;
@@ -155,11 +155,11 @@ int loadThemisLevel2(ProgramState *state)
             {
                 for (int r = 0; r < IMAGE_ROWS; r++)
                 {
-                    if (isfinite(state->cameraAzimuths[c][r]) && isfinite(state->cameraElevations[c][r]))
+                    if (isfinite(state->referenceAzimuths[c][r]) && isfinite(state->referenceElevations[c][r]))
                     {
-                        state->pixelX[c][r] = cos((90.0 - state->cameraAzimuths[c][r])*M_PI/180.0) * cos(state->cameraElevations[c][r]*M_PI/180.0);
-                        state->pixelY[c][r] = sin((90.0 - state->cameraAzimuths[c][r])*M_PI/180.0) * cos(state->cameraElevations[c][r]*M_PI/180.0);
-                        state->pixelZ[c][r] = sin(state->cameraElevations[c][r]*M_PI/180.0);
+                        state->pixelX[c][r] = cos((90.0 - state->referenceAzimuths[c][r])*M_PI/180.0) * cos(state->referenceElevations[c][r]*M_PI/180.0);
+                        state->pixelY[c][r] = sin((90.0 - state->referenceAzimuths[c][r])*M_PI/180.0) * cos(state->referenceElevations[c][r]*M_PI/180.0);
+                        state->pixelZ[c][r] = sin(state->referenceElevations[c][r]*M_PI/180.0);
                     }
                     else
                     {
@@ -524,13 +524,13 @@ int loadSkymapFromFile(ProgramState *state)
     if (!isfinite(state->siteLatitudeGeodetic) || !isfinite(state->siteLongitudeGeodetic) || !isfinite(state->siteAltitudeMetres))
         return ASCC_SKYMAP_FILE;
 
-    pointer = &state->cameraElevations[0][0];
+    pointer = &state->referenceElevations[0][0];
     mem = variableData(data, "skymap.full_elevation")->data;
     if (mem == NULL)
         return ASCC_SKYMAP_FILE;
     memcpy(pointer, mem, IMAGE_COLUMNS * IMAGE_ROWS * sizeof(float));
 
-    pointer = &state->cameraAzimuths[0][0];
+    pointer = &state->referenceAzimuths[0][0];
     mem = variableData(data, "skymap.full_azimuth")->data;
     if (mem == NULL)
         return ASCC_SKYMAP_FILE;
@@ -549,13 +549,13 @@ int loadSkymapFromFile(ProgramState *state)
     {
         for (int r = 0; r < IMAGE_ROWS; r++)
         {
-            tmp = state->cameraElevations[c][r];
-            state->cameraElevations[c][r] = state->cameraElevations[IMAGE_COLUMNS - 1 - c][r];
-            state->cameraElevations[IMAGE_COLUMNS - 1 - c][r] = tmp;
+            tmp = state->referenceElevations[c][r];
+            state->referenceElevations[c][r] = state->referenceElevations[IMAGE_COLUMNS - 1 - c][r];
+            state->referenceElevations[IMAGE_COLUMNS - 1 - c][r] = tmp;
 
-            tmp = state->cameraAzimuths[c][r];
-            state->cameraAzimuths[c][r] = state->cameraAzimuths[IMAGE_COLUMNS - 1 - c][r];
-            state->cameraAzimuths[IMAGE_COLUMNS - 1 - c][r] = tmp;
+            tmp = state->referenceAzimuths[c][r];
+            state->referenceAzimuths[c][r] = state->referenceAzimuths[IMAGE_COLUMNS - 1 - c][r];
+            state->referenceAzimuths[IMAGE_COLUMNS - 1 - c][r] = tmp;
 
             tmpu16 = state->sitePixelOffsets[c][r];
             state->sitePixelOffsets[c][r] = state->sitePixelOffsets[IMAGE_COLUMNS - 1 - c][r];
@@ -566,13 +566,13 @@ int loadSkymapFromFile(ProgramState *state)
     {
         for (int r = 0; r < IMAGE_ROWS / 2; r++)
         {
-            tmp = state->cameraElevations[c][r];
-            state->cameraElevations[c][r] = state->cameraElevations[c][IMAGE_ROWS - 1 - r];
-            state->cameraElevations[c][IMAGE_ROWS - 1 - r] = tmp;
+            tmp = state->referenceElevations[c][r];
+            state->referenceElevations[c][r] = state->referenceElevations[c][IMAGE_ROWS - 1 - r];
+            state->referenceElevations[c][IMAGE_ROWS - 1 - r] = tmp;
 
-            tmp = state->cameraAzimuths[c][r];
-            state->cameraAzimuths[c][r] = state->cameraAzimuths[c][IMAGE_ROWS - 1 - r];
-            state->cameraAzimuths[c][IMAGE_ROWS - 1 - r] = tmp;
+            tmp = state->referenceAzimuths[c][r];
+            state->referenceAzimuths[c][r] = state->referenceAzimuths[c][IMAGE_ROWS - 1 - r];
+            state->referenceAzimuths[c][IMAGE_ROWS - 1 - r] = tmp;
 
             tmpu16 = state->sitePixelOffsets[c][r];
             state->sitePixelOffsets[c][r] = state->sitePixelOffsets[c][IMAGE_ROWS - 1 - r];
@@ -585,11 +585,11 @@ int loadSkymapFromFile(ProgramState *state)
         for (int r = 0; r < IMAGE_ROWS; r++)
         {
             // Calculate AzEl Cartesian coordinates
-            if (isfinite(state->cameraAzimuths[c][r]) && isfinite(state->cameraElevations[c][r]))
+            if (isfinite(state->referenceAzimuths[c][r]) && isfinite(state->referenceElevations[c][r]))
             {
-                state->pixelX[c][r] = cos((90.0 - state->cameraAzimuths[c][r])*M_PI/180.0) * cos(state->cameraElevations[c][r]*M_PI/180.0);
-                state->pixelY[c][r] = sin((90.0 - state->cameraAzimuths[c][r])*M_PI/180.0) * cos(state->cameraElevations[c][r]*M_PI/180.0);
-                state->pixelZ[c][r] = sin(state->cameraElevations[c][r]*M_PI/180.0);
+                state->pixelX[c][r] = cos((90.0 - state->referenceAzimuths[c][r])*M_PI/180.0) * cos(state->referenceElevations[c][r]*M_PI/180.0);
+                state->pixelY[c][r] = sin((90.0 - state->referenceAzimuths[c][r])*M_PI/180.0) * cos(state->referenceElevations[c][r]*M_PI/180.0);
+                state->pixelZ[c][r] = sin(state->referenceElevations[c][r]*M_PI/180.0);
             }
             else
             {

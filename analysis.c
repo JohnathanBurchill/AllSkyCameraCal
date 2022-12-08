@@ -376,7 +376,7 @@ int analyzeL1FileImages(ProgramState *state, char *l1file)
             {
                 for (int r = 0; r < IMAGE_COLUMNS; r++)
                 {
-                    if (!isfinite(state->cameraAzimuths[c][r]) || !isfinite(state->cameraElevations[c][r]))
+                    if (!isfinite(state->referenceAzimuths[c][r]) || !isfinite(state->referenceElevations[c][r]))
                         continue;
                     // TODO use a GPU
                     starx = cos((90.0 - cal->predictedAz)*M_PI/180.0) * cos(cal->predictedEl*M_PI/180.0);
@@ -1136,4 +1136,62 @@ cleanup:
 
     return (size_t)expectedNumberOfImagesToProcess;
 
+}
+
+
+int updateCalibration(ProgramState *state)
+{
+    int status = ASCC_OK;
+
+    if (state == NULL)
+        return ASCC_ARGUMENTS;
+
+    // Default: invalid calibration signaled by NANs 
+    for (int c = 0; c < IMAGE_COLUMNS; c++)
+        for (int r = 0; r < IMAGE_ROWS; r++)
+        {
+            state->calibratedElevations[c][r] = NAN;
+            state->calibratedAzimuths[c][r] = NAN;
+        }
+
+    if (state->nImages == 0)
+        return ASCC_NO_CALIBRATION_DATA;
+
+
+    float xEnu[IMAGE_COLUMNS][IMAGE_ROWS] = {0.0};
+    float yEnu[IMAGE_COLUMNS][IMAGE_ROWS] = {0.0};
+    float zEnu[IMAGE_COLUMNS][IMAGE_ROWS] = {0.0};
+
+    float *dcm = NULL;
+    float degree = M_PI / 180.0;
+
+    for (int i = 0; i < state->nImages; i++)
+    {
+        dcm = &state->pointingErrorDcms[i*9];
+        for (int c = 0; c < IMAGE_COLUMNS; c++)
+        {
+            for (int r = 0; r < IMAGE_ROWS; r++)
+            {
+                xEnu[c][r] += dcm[0] * state->pixelX[c][r] + dcm[3] * state->pixelY[c][r] + dcm[6] * state->pixelZ[c][r];
+                yEnu[c][r] += dcm[1] * state->pixelX[c][r] + dcm[4] * state->pixelY[c][r] + dcm[7] * state->pixelZ[c][r];
+                zEnu[c][r] += dcm[2] * state->pixelX[c][r] + dcm[5] * state->pixelY[c][r] + dcm[8] * state->pixelZ[c][r];
+            }
+        }
+    }
+    for (int c = 0; c < IMAGE_COLUMNS; c++)
+    {
+        for (int r = 0; r < IMAGE_ROWS; r++)
+        {
+            xEnu[c][r] /= (float)state->nImages;
+            yEnu[c][r] /= (float)state->nImages;
+            zEnu[c][r] /= (float)state->nImages;
+
+            state->calibratedElevations[c][r] = atanf(zEnu[c][r] / sqrtf(xEnu[c][r]*xEnu[c][r] + yEnu[c][r]*yEnu[c][r])) / degree;
+            state->calibratedAzimuths[c][r] = fmod(360+(90.0 - atan2f(yEnu[c][r], xEnu[c][r]) / degree), 360.0);
+        }
+    }
+
+    state->calibrationUpdated = true;
+
+    return status;
 }

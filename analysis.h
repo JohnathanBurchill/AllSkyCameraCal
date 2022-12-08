@@ -41,4 +41,7 @@ int calculatePositionOfMax(uint16_t image[IMAGE_COLUMNS][IMAGE_ROWS], int boxHal
 
 size_t numberOfL1FileImagesToProcess(char *l1file, double firstCalTime, double lastCaltime);
 
+
+int updateCalibration(ProgramState *state);
+
 #endif // _ANALYSIS_H

@@ -71,7 +71,7 @@ int main(int argc, char **argv)
     {
         for (int r = 0; r < IMAGE_ROWS; r++)
         {
-            printf("%f %f %f %f %d %d\n", stateL2.cameraAzimuths[c][r], stateIdl.cameraAzimuths[c][r], stateL2.cameraElevations[c][r], stateIdl.cameraElevations[c][r], stateL2.sitePixelOffsets[c][r], stateIdl.sitePixelOffsets[c][r]);
+            printf("%f %f %f %f %d %d\n", stateL2.referenceAzimuths[c][r], stateIdl.referenceAzimuths[c][r], stateL2.referenceElevations[c][r], stateIdl.referenceElevations[c][r], stateL2.sitePixelOffsets[c][r], stateIdl.sitePixelOffsets[c][r]);
         }
     }
 
