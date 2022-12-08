@@ -412,6 +412,20 @@ int exportCdf(ProgramState *state)
         goto cleanup;
     }
 
+    cdfstatus = CDFcreateAttr(cdf, "Processor", GLOBAL_SCOPE, &attrNum);
+    if (cdfstatus != CDF_OK)
+    {
+        status = ASCC_CDF_WRITE;
+        goto cleanup;
+    }
+    char *processorString = "AllSkyCameraCal version " PROGRAM_VERSION_STRING;
+    cdfstatus = CDFputAttrgEntry(cdf, attrNum, entry, CDF_CHAR, strlen(processorString), processorString);
+    if (cdfstatus != CDF_OK)
+    {
+        status = ASCC_CDF_WRITE;
+        goto cleanup;
+    }
+
     cdfstatus = CDFcreateAttr(cdf, "ProcessingStart", GLOBAL_SCOPE, &attrNum);
     if (cdfstatus != CDF_OK)
     {
