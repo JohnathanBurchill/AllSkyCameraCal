@@ -132,7 +132,7 @@ int analyzeImagery(ProgramState *state)
         return ASCC_CDF_EXPORT_NO_DATA;
 
     if (state->verbose)
-        fprintf(stderr, "Found %lu images to process.\n", state->expectedNumberOfImages);
+        fprintf(stderr, "Found %zu images to process.\n", state->expectedNumberOfImages);
 
     // Re-open listing to do the processing
     fts = fts_open(dir, FTS_LOGICAL, &sortL1Listing);

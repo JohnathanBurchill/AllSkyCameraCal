@@ -164,7 +164,7 @@ int main(int argc, char **argv)
     state.processingStopEpoch = currentEpoch();
 
     if (state.verbose)
-        fprintf(stderr, "Processed %lu images.\n", state.expectedNumberOfImages);
+        fprintf(stderr, "Processed %zu images.\n", state.expectedNumberOfImages);
 
     status = updateCalibration(&state);
 
