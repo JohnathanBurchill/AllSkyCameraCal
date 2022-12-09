@@ -273,6 +273,24 @@ int exportCdf(ProgramState *state)
     dimSizes[1] = IMAGE_ROWS;
     dimsVariance[0] = VARY;
     dimsVariance[1] = VARY;
+    cdfstatus = CDFcreatezVar(cdf, "CCDOffsets", CDF_UINT2, 1, nDims, dimSizes, recVariance, dimsVariance, &varNum);
+    if (cdfstatus != CDF_OK)
+    {
+        status = ASCC_CDF_WRITE;
+        goto cleanup;
+    }
+    cdfstatus = CDFsetzVarCompression(cdf, varNum, GZIP_COMPRESSION, compressionParam);
+    if (cdfstatus != CDF_OK)
+    {
+        status = ASCC_CDF_WRITE;
+        goto cleanup;
+    }
+    cdfstatus = CDFputzVarAllRecordsByVarID(cdf, varNum, 1, state->sitePixelOffsets);
+    if (cdfstatus != CDF_OK)
+    {
+        status = ASCC_CDF_WRITE;
+        goto cleanup;
+    }
     cdfstatus = CDFcreatezVar(cdf, "ReferenceElevations", CDF_REAL4, 1, nDims, dimSizes, recVariance, dimsVariance, &varNum);
     if (cdfstatus != CDF_OK)
     {
@@ -632,13 +650,19 @@ int exportCdf(ProgramState *state)
         status = ASCC_CDF_WRITE;
         goto cleanup;
     }
-    cdfstatus = addVariableAttributes(cdf, "ReferenceDateGenerated", "Date the reference calibration file was generated", "-");
+    cdfstatus = addVariableAttributes(cdf, "ReferenceDateGenerated", "Date the reference calibration file was generated.", "-");
     if (cdfstatus != CDF_OK)
     {
         status = ASCC_CDF_WRITE;
         goto cleanup;
     }
-    cdfstatus = addVariableAttributes(cdf, "ReferenceDateUsed", "Date and UT of images files used for reference calibration", "-");
+    cdfstatus = addVariableAttributes(cdf, "ReferenceDateUsed", "Date and UT of images files used for reference calibration.", "-");
+    if (cdfstatus != CDF_OK)
+    {
+        status = ASCC_CDF_WRITE;
+        goto cleanup;
+    }
+    cdfstatus = addVariableAttributes(cdf, "CCDOffsets", "CCD level offsets in ASI imagery.", "DN");
     if (cdfstatus != CDF_OK)
     {
         status = ASCC_CDF_WRITE;
