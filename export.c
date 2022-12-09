@@ -584,7 +584,7 @@ int exportCdf(ProgramState *state)
         goto cleanup;
     }
 
-    cdfstatus = addVariableAttributes(cdf, "Timestamp", "Epoch of image used for calibration.", "milliseconds from 0000-01-01:00:00:00 UT, no leap seconds");
+    cdfstatus = addVariableAttributes(cdf, "Timestamp", "Epoch of image used for calibration. Milliseconds from 0000-01-01:00:00:00 UT, no leap seconds.", "-");
     if (cdfstatus != CDF_OK)
     {
         status = ASCC_CDF_WRITE;
@@ -656,7 +656,7 @@ int exportCdf(ProgramState *state)
         status = ASCC_CDF_WRITE;
         goto cleanup;
     }
-    cdfstatus = addVariableAttributes(cdf, "CalibrationEpoch", "Epoch of revised calibration (mean of calibration image times)", "milliseconds from 0000-01-01:00:00:00 UT, no leap seconds");
+    cdfstatus = addVariableAttributes(cdf, "CalibrationEpoch", "Epoch of revised calibration (mean of calibration image times). Milliseconds from 0000-01-01:00:00:00 UT, no leap seconds.", "-");
     if (cdfstatus != CDF_OK)
     {
         status = ASCC_CDF_WRITE;
