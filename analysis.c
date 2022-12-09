@@ -591,7 +591,7 @@ int analyzeL1FileImages(ProgramState *state, char *l1file)
         imageCounter++;
         if (state->showProgress)
         {
-            fprintf(stderr, "\r%lu of %lu images processed", imageCounter, state->expectedNumberOfImages);
+            fprintf(stderr, "\r%zu of %zu images processed", imageCounter, state->expectedNumberOfImages);
         }
     }
     if (imageCounter > startImage)
