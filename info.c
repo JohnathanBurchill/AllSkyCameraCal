@@ -1,5 +1,6 @@
-#include "main.h"
 #include "info.h"
+#include "main.h"
+#include "util.h"
 
 #include <stdio.h>
 
